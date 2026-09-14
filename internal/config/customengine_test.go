@@ -613,6 +613,7 @@ func TestResolveCustomEngineConfig_ResolvesModelEnv(t *testing.T) {
 	cfg.Engine.Model = ModelConfig{
 		Provider: "${CUSTOM_MODEL_PROVIDER:-openai}",
 		Name:     "${CUSTOM_MODEL_NAME}",
+		Params:   map[string]string{"legacy": "${MISSING_LEGACY_PARAM}"},
 	}
 
 	if err := ResolveCustomEngineConfig(cfg); err != nil {
@@ -623,6 +624,9 @@ func TestResolveCustomEngineConfig_ResolvesModelEnv(t *testing.T) {
 	}
 	if cfg.Engine.Model.Provider != "openai" {
 		t.Errorf("model.provider = %q, want openai", cfg.Engine.Model.Provider)
+	}
+	if cfg.Engine.Model.Params["legacy"] != "${MISSING_LEGACY_PARAM}" {
+		t.Errorf("deprecated model.params was resolved: %q", cfg.Engine.Model.Params["legacy"])
 	}
 }
 

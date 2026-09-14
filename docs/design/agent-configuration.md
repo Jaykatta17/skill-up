@@ -163,8 +163,11 @@ Tagged Actions and historical commands therefore remain valid.
 
 - The legacy flattened credential lookup remains available to older internal
   callers, but adapter construction uses the protocol-aware connection.
-- `engine.entry` and `engine.model.params` produce warnings when ineffective;
-  their final implementation or removal is deferred to the schema phase.
+- `engine.entry` and `engine.model.params` are legacy no-op fields. They remain
+  accepted by the v1alpha1 loader for compatibility, emit migration warnings,
+  and are dropped before role resolution reaches an adapter. Custom executable
+  configuration belongs under `engine.custom.local`; adapter-specific options
+  belong under `engine.kwargs` or `engine.custom.kwargs`.
 - QoderCLI does not support selecting an installer version, so an explicit
   `engine.version` is warned and ignored for that adapter.
 

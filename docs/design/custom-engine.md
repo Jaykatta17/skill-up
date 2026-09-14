@@ -148,8 +148,6 @@ engine:
     provider: string
     name: string
     base_url: string
-    params:
-      string: string
   custom:
     transport: local | http
     timeout_seconds: int
@@ -196,6 +194,12 @@ engine:
 | `custom.http.headers` | no | HTTP headers |
 | `custom.http.files` | no | Declares the set of workspace files uploaded with the HTTP request |
 | `custom.http.request_body` | no | HTTP JSON body template |
+
+The v1alpha1 loader still accepts `engine.entry` and `engine.model.params` so
+older files continue to parse, but both fields are ignored with migration
+warnings. Use `custom.local.command` and `custom.local.args` instead of
+`engine.entry`; use `engine.kwargs` or `custom.kwargs` instead of
+`engine.model.params`.
 
 ## Transport consistency principle
 
@@ -275,10 +279,11 @@ Supported forms:
 | `${VAR:-default}` | Uses `default` when `VAR` is missing or empty |
 | `${VAR?message}` | Reports an error with `message` when `VAR` is missing or empty |
 
-Variable substitution applies only to string fields inside `engine.custom`, and to
-string values in `engine.model.base_url` / `engine.model.params`. It must not apply
-globally to the case prompt, judge criteria, or the whole YAML, to avoid accidentally
-substituting user input.
+Variable substitution applies only to string fields inside `engine.custom`, and
+to `engine.model.provider`, `engine.model.name`, and `engine.model.base_url`. It
+must not apply globally to the case prompt, judge criteria, or the whole YAML,
+to avoid accidentally substituting user input. The legacy no-op
+`engine.model.params` map is not expanded.
 
 Log output must hide sensitive values. Field names matching `KEY`, `TOKEN`, `SECRET`,
 `PASSWORD`, `AUTHORIZATION`, or values in a URL query that look like tokens, should all

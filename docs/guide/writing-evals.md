@@ -154,6 +154,12 @@ as `latest` or `^2.1.0` are accepted but ignored with a warning. Reports retain
 the original value as requested configuration and leave the applied version
 empty.
 
+The legacy fields `engine.entry` and `engine.model.params` are still accepted
+so existing v1alpha1 files continue to load, but they have never been applied
+to an adapter and are now explicitly ignored with migration warnings. Use
+`engine.custom.local.command` and `args` for a custom executable, and use
+`engine.kwargs` or `engine.custom.kwargs` for adapter-specific options.
+
 ### Engine kwargs (agent-specific switches)
 
 `engine.kwargs` is a free-form string map. Each agent reads only the keys it recognises; unknown keys are ignored. Unrecognised keys (typos like `bypas_sandbox`) emit a DEBUG log line — run with `-v` to surface them. CLI override: `--engine-kwarg key=value` (alias `--ek`), repeatable. Precedence: `--engine-kwarg` > `engine.kwargs` > default.

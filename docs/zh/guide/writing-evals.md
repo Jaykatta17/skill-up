@@ -149,6 +149,11 @@ Codex 和 Qwen Code 会先安装指定版本再校验。QoderCLI 的实际版本
 或范围仍可通过配置加载，但会被警告并忽略。报告会将原始值保留为 requested
 configuration，并将 applied version 留空。
 
+历史字段 `engine.entry` 和 `engine.model.params` 仍会被 v1alpha1 配置加载，
+但不会传递给 adapter，并会输出迁移警告。自定义可执行命令请使用
+`engine.custom.local.command` 和 `args`；adapter 专用参数请使用
+`engine.kwargs` 或 `engine.custom.kwargs`。
+
 ### 采集 workspace 产物（`collect_artifacts`）
 
 `collect_artifacts` 用 glob 声明要从用例 workspace 采集的文件。每次 Agent 运行后——**无论成功、失败还是超时**——命中的文件都会被下载到：

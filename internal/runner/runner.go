@@ -564,15 +564,13 @@ func buildReportInput(
 ) report.Input {
 	if resolved.Engine == "" {
 		resolved = credential.ResolvedAgentConfig{
-			Role:        credential.AgentRoleRunner,
-			Engine:      evalCfg.Engine.Name,
-			Version:     evalCfg.Engine.Version,
-			Entry:       evalCfg.Engine.Entry,
-			Provider:    evalCfg.Engine.Model.Provider,
-			Model:       evalCfg.Engine.Model.Name,
-			BaseURL:     evalCfg.Engine.Model.BaseURL,
-			Kwargs:      evalCfg.Engine.Kwargs,
-			ModelParams: evalCfg.Engine.Model.Params,
+			Role:     credential.AgentRoleRunner,
+			Engine:   evalCfg.Engine.Name,
+			Version:  evalCfg.Engine.Version,
+			Provider: evalCfg.Engine.Model.Provider,
+			Model:    evalCfg.Engine.Model.Name,
+			BaseURL:  evalCfg.Engine.Model.BaseURL,
+			Kwargs:   evalCfg.Engine.Kwargs,
 		}
 	}
 	resolved = agent.ResolveAdapterConfig(resolved, nil)

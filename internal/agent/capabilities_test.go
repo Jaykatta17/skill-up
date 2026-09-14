@@ -350,12 +350,10 @@ func TestResolveAdapterConfig_ValidatesExplicitSettingsWithoutAliasing(t *testin
 		"typo":                   "value",
 	}
 	params := credential.ResolvedAgentConfig{
-		Engine:      "codex",
-		Version:     "1.2.3",
-		Entry:       "codex-custom",
-		Model:       "gpt-5.4",
-		Kwargs:      kwargs,
-		ModelParams: map[string]string{"reasoning": "high"},
+		Engine:  "codex",
+		Version: "1.2.3",
+		Model:   "gpt-5.4",
+		Kwargs:  kwargs,
 	}
 
 	got := ResolveAdapterConfig(params, nil)
@@ -364,7 +362,7 @@ func TestResolveAdapterConfig_ValidatesExplicitSettingsWithoutAliasing(t *testin
 			t.Fatalf("invalid or unsupported kwarg %q was not removed: %v", key, got.Kwargs)
 		}
 	}
-	for _, want := range []string{"engine.entry", "engine.model.params", "requires boolean", "requires positive integer", "does not support kwarg"} {
+	for _, want := range []string{"requires boolean", "requires positive integer", "does not support kwarg"} {
 		if !containsWarning(got.Warnings, want) {
 			t.Fatalf("warnings = %v, want substring %q", got.Warnings, want)
 		}
@@ -382,10 +380,6 @@ func TestResolveAdapterConfig_ValidatesExplicitSettingsWithoutAliasing(t *testin
 		if strings.Contains(warning, "sensitive-invalid-value") {
 			t.Fatalf("warning exposed invalid kwarg value: %q", warning)
 		}
-	}
-	params.ModelParams["reasoning"] = "low"
-	if got.ModelParams["reasoning"] != "high" {
-		t.Fatalf("resolved ModelParams aliases source: %v", got.ModelParams)
 	}
 }
 

@@ -96,10 +96,12 @@ type SkillRef struct {
 
 // EngineConfig defines the Agent Engine configuration.
 type EngineConfig struct {
-	Name    string      `yaml:"name"` // claude_code, codex, custom
-	Version string      `yaml:"version,omitempty"`
-	Entry   string      `yaml:"entry,omitempty"`
-	Model   ModelConfig `yaml:"model"`
+	Name    string `yaml:"name"` // claude_code, codex, custom
+	Version string `yaml:"version,omitempty"`
+	// Legacy compatibility field: retained so existing v1alpha1 files continue
+	// to load. Use engine.custom.local.command and args instead.
+	Entry string      `yaml:"entry,omitempty"`
+	Model ModelConfig `yaml:"model"`
 	// Kwargs carries agent-specific key/value options. Each agent reads only
 	// the keys it understands; unknown keys are ignored. Recognised keys are
 	// documented per agent (e.g. codex honours "bypass_sandbox").
@@ -109,10 +111,12 @@ type EngineConfig struct {
 
 // ModelConfig describes the model to use.
 type ModelConfig struct {
-	Provider string            `yaml:"provider"` // anthropic, openai, azure, ollama
-	Name     string            `yaml:"name"`
-	BaseURL  string            `yaml:"base_url,omitempty"`
-	Params   map[string]string `yaml:"params,omitempty"`
+	Provider string `yaml:"provider"` // anthropic, openai, azure, ollama
+	Name     string `yaml:"name"`
+	BaseURL  string `yaml:"base_url,omitempty"`
+	// Legacy compatibility field: retained so existing v1alpha1 files continue
+	// to load. Use engine.kwargs or engine.custom.kwargs instead.
+	Params map[string]string `yaml:"params,omitempty"`
 }
 
 // CasesConfig describes the test cases configuration.

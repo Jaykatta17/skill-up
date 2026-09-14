@@ -199,6 +199,41 @@ cases:
 	}
 }
 
+func TestLoader_LoadEvalConfig_LegacyAgentFields(t *testing.T) {
+	t.Parallel()
+
+	content := `schema_version: v1alpha1
+environment:
+  type: none
+engine:
+  name: codex
+  entry: legacy-codex
+  model:
+    provider: openai
+    name: test-model
+    params:
+      reasoning: high
+cases:
+  files: []
+`
+
+	evalPath := filepath.Join(t.TempDir(), "eval.yaml")
+	if err := os.WriteFile(evalPath, []byte(content), 0o600); err != nil {
+		t.Fatalf("failed to write temp eval.yaml: %v", err)
+	}
+
+	cfg, err := NewLoader(evalPath).LoadEvalConfig()
+	if err != nil {
+		t.Fatalf("LoadEvalConfig failed: %v", err)
+	}
+	if cfg.Engine.Entry != "legacy-codex" {
+		t.Fatalf("engine.entry = %q, want legacy-codex", cfg.Engine.Entry)
+	}
+	if cfg.Engine.Model.Params["reasoning"] != "high" {
+		t.Fatalf("engine.model.params = %v, want reasoning=high", cfg.Engine.Model.Params)
+	}
+}
+
 // nolint:funlen // table-driven test cases drive the line count; splitting hurts readability.
 func TestLoader_LoadEvalConfig_PassThreshold(t *testing.T) {
 	t.Parallel()

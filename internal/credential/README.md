@@ -28,7 +28,6 @@ type ResolvedAgentConfig struct {
     Engine         string
     Version        string
     AppliedVersion string
-    Entry          string
     Protocol       string
     Provider       string
     Model          string // requested model
@@ -40,7 +39,6 @@ type ResolvedAgentConfig struct {
     APIKey         string
     BaseURL        string
     Kwargs         map[string]string
-    ModelParams    map[string]string
     Warnings       []string
 }
 ```
@@ -52,6 +50,10 @@ Protocol, applied version/model, applied connection, and warnings are filled by
 the subsequent adapter capability pass. `Version` retains the requested value;
 `AppliedVersion` is populated only for an exact selector supported by the
 adapter.
+
+The v1alpha1 loader still accepts the legacy no-op fields `engine.entry` and
+`engine.model.params`, but resolution emits migration warnings and deliberately
+does not carry them into `ResolvedAgentConfig`.
 
 ## Two Pipelines
 
@@ -163,10 +165,11 @@ Where:
 
 Recommended execution order:
 
-1. Copy the role's YAML values and clone its kwargs/model params
+1. Copy the role's effective YAML values and clone its kwargs
 2. Apply an explicit CLI `--provider`; when present, preserve the complete CLI
    `--model`, otherwise resolve the legacy slashed model form once
-3. For the judge agent, fill missing fields from the resolved runner config
+3. For the judge agent, fill missing connection fields from the resolved runner
+   config while inheriting the runner engine lifecycle
 4. If the final provider is non-empty, uniformly read `${PROVIDER}_MODEL` / `${PROVIDER}_API_KEY` / `${PROVIDER}_BASE_URL`
 5. If the `api-key` / `base-url` env var is missing, read from the resolver's credential configuration
 6. Apply the explicit CLI API key and preserve CLI model precedence

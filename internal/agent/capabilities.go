@@ -48,8 +48,6 @@ type Capabilities struct {
 	ModelPolicy     ModelPolicy
 	SupportsBaseURL bool
 	SupportsVersion bool
-	SupportsEntry   bool
-	SupportsParams  bool
 	SupportedKwargs []string
 	ArbitraryKwargs bool
 }
@@ -103,7 +101,6 @@ func ResolveAdapterConfig(params credential.ResolvedAgentConfig, resolver *crede
 		params.Role = credential.AgentRoleRunner
 	}
 	params.Kwargs = maps.Clone(params.Kwargs)
-	params.ModelParams = maps.Clone(params.ModelParams)
 	params.Warnings = slices.Clone(params.Warnings)
 
 	capabilities := CapabilitiesForEngine(params.Engine)
@@ -114,7 +111,7 @@ func ResolveAdapterConfig(params credential.ResolvedAgentConfig, resolver *crede
 	params.AppliedProvider = resolveAppliedProvider(&params, capabilities)
 	params.AppliedModel = resolveAppliedModel(&params, capabilities)
 	validateBaseURL(&params, capabilities)
-	validateDeferredFields(&params, capabilities)
+	resolveAppliedVersion(&params, capabilities)
 	validateKwargs(&params, capabilities)
 	params.AppliedConnection = appliedModelConnection(params, connection)
 	return params
@@ -273,7 +270,7 @@ func validateBaseURL(params *credential.ResolvedAgentConfig, capabilities Capabi
 	params.AppliedBaseURL = ""
 }
 
-func validateDeferredFields(params *credential.ResolvedAgentConfig, capabilities Capabilities) {
+func resolveAppliedVersion(params *credential.ResolvedAgentConfig, capabilities Capabilities) {
 	params.AppliedVersion = ""
 	if params.Version != "" {
 		switch {
@@ -290,18 +287,6 @@ func validateDeferredFields(params *credential.ResolvedAgentConfig, capabilities
 		default:
 			params.AppliedVersion = params.Version
 		}
-	}
-	if params.Entry != "" && !capabilities.SupportsEntry {
-		params.Warnings = appendUniqueWarning(params.Warnings, fmt.Sprintf(
-			"engine %q does not support engine.entry; the configured entry is ignored",
-			params.Engine,
-		))
-	}
-	if len(params.ModelParams) != 0 && !capabilities.SupportsParams {
-		params.Warnings = appendUniqueWarning(params.Warnings, fmt.Sprintf(
-			"engine %q does not support engine.model.params; the configured parameters are ignored",
-			params.Engine,
-		))
 	}
 }
 

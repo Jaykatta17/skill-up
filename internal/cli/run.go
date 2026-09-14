@@ -225,7 +225,7 @@ func loadAndPrepareConfig(ctx context.Context, cmd *cobra.Command, args []string
 	// final engine name is known (it can be changed by --engine); process it
 	// now so an override is never blocked by an unrelated custom block. A CLI
 	// model supersedes the YAML provider/name, while a provider-only override
-	// supersedes just the YAML provider. Base URL and model params remain active.
+	// supersedes just the YAML provider. The base URL remains active.
 	if err := config.ResolveCustomEngineConfigWithOptions(evalCfg, config.ResolveCustomEngineOptions{
 		SkipModelProvider: providerFlag != "" || modelFlag != "",
 		SkipModelName:     modelFlag != "",

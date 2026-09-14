@@ -58,7 +58,6 @@ func DetectAgentWithResolvedConfig(params credential.ResolvedAgentConfig) (Agent
 	cfg := Config{
 		Name:               engineName,
 		Version:            params.AppliedVersion,
-		Entry:              params.Entry,
 		ModelName:          params.AppliedModel,
 		RequestedModelName: params.Model,
 		RequestedProvider:  params.Provider,

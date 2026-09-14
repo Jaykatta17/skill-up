@@ -48,7 +48,6 @@ type ResolvedAgentConfig struct {
 	Engine         string
 	Version        string
 	AppliedVersion string
-	Entry          string
 	Protocol       string
 
 	Provider          string
@@ -61,7 +60,6 @@ type ResolvedAgentConfig struct {
 	APIKey            string
 	BaseURL           string
 	Kwargs            map[string]string
-	ModelParams       map[string]string
 	Warnings          []string
 
 	// Custom carries the custom engine config when the engine name does not
@@ -123,12 +121,8 @@ func ResolveJudgeConfig(judgeCfg config.JudgeConfig, runner ResolvedAgentConfig,
 		engine: config.EngineConfig{
 			Name:    runner.Engine,
 			Version: runner.Version,
-			Entry:   runner.Entry,
 			Kwargs:  maps.Clone(runner.Kwargs),
 			Custom:  runner.Custom,
-			Model: config.ModelConfig{
-				Params: maps.Clone(runner.ModelParams),
-			},
 		},
 		provider:    provider,
 		model:       model,
@@ -160,16 +154,24 @@ func resolveResolvedAgentConfig(in agentResolveInput) ResolvedAgentConfig {
 		custom = nil
 	}
 	params := ResolvedAgentConfig{
-		Role:        in.role,
-		Engine:      in.engine.Name,
-		Version:     in.engine.Version,
-		Entry:       in.engine.Entry,
-		Provider:    in.provider,
-		Model:       in.model,
-		BaseURL:     in.baseURL,
-		Kwargs:      maps.Clone(in.engine.Kwargs),
-		ModelParams: maps.Clone(in.engine.Model.Params),
-		Custom:      custom,
+		Role:     in.role,
+		Engine:   in.engine.Name,
+		Version:  in.engine.Version,
+		Provider: in.provider,
+		Model:    in.model,
+		BaseURL:  in.baseURL,
+		Kwargs:   maps.Clone(in.engine.Kwargs),
+		Custom:   custom,
+	}
+	if strings.TrimSpace(in.engine.Entry) != "" {
+		params.Warnings = append(params.Warnings,
+			"engine.entry is deprecated and ignored; use engine.custom.local.command and args instead",
+		)
+	}
+	if len(in.engine.Model.Params) != 0 {
+		params.Warnings = append(params.Warnings,
+			"engine.model.params is deprecated and ignored; use engine.kwargs or engine.custom.kwargs instead",
+		)
 	}
 	if params.Provider != "" {
 		params.ProviderSource = in.valueSource

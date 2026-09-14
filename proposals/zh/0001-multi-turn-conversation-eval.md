@@ -1245,13 +1245,6 @@ type qoderPrintJSONResult struct {
     Content   string `json:"content"`
 }
 
-func qoderExecutableName(cfg Config) string {
-    if cfg.Entry != "" {
-        return cfg.Entry
-    }
-    return "qodercli"
-}
-
 // QoderCLIAgent 实现了 SessionResumer 接口。
 
 // RunTurn 用跟进消息恢复 qodercli 会话。
@@ -1261,7 +1254,7 @@ func (a *QoderCLIAgent) RunTurn(ctx context.Context, rt Runtime, opts ExecOption
     instruction := message.Content
 
     cmd := buildQoderResumePrintCmd(
-        qoderExecutableName(a.Cfg),
+        a.profile.binary,
         sessionID,
         instruction,
         a.effectiveModelName(ctx),

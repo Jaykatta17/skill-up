@@ -146,8 +146,9 @@ rejected Codex provider cannot leak its key or endpoint into local fallback.
 | Custom Engine | `custom` | pass through | no; use `engine.custom.http.url` | none; use `engine.custom.kwargs` |
 
 Unsupported kwargs and invalid supported-kwarg values are removed from the
-adapter input after producing an actionable warning. `engine.entry` and
-`engine.model.params` are also reported as currently ineffective.
+adapter input after producing an actionable warning. The legacy no-op fields
+`engine.entry` and `engine.model.params` are dropped before adapter construction
+and produce migration warnings.
 
 Before a case runs, `Preflight` invokes the adapter's availability check and,
 for built-in CLI agents, a static `--version` command. It never checks login

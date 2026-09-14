@@ -1248,13 +1248,6 @@ type qoderPrintJSONResult struct {
     Content   string `json:"content"`
 }
 
-func qoderExecutableName(cfg Config) string {
-    if cfg.Entry != "" {
-        return cfg.Entry
-    }
-    return "qodercli"
-}
-
 // QoderCLIAgent implements the SessionResumer interface.
 
 // RunTurn resumes a qodercli session with a follow-up message.
@@ -1264,7 +1257,7 @@ func (a *QoderCLIAgent) RunTurn(ctx context.Context, rt Runtime, opts ExecOption
     instruction := message.Content
 
     cmd := buildQoderResumePrintCmd(
-        qoderExecutableName(a.Cfg),
+        a.profile.binary,
         sessionID,
         instruction,
         a.effectiveModelName(ctx),

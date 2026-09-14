@@ -378,8 +378,13 @@ func TestResolveRunnerConfig_ResolvesCLIModelOnceWithoutMutatingInput(t *testing
 	}
 	engine.Kwargs["bypass_sandbox"] = "false"
 	engine.Model.Params["reasoning"] = "low"
-	if resolved.Kwargs["bypass_sandbox"] != "true" || resolved.ModelParams["reasoning"] != "high" {
-		t.Fatalf("resolved maps alias input config: kwargs=%v params=%v", resolved.Kwargs, resolved.ModelParams)
+	if resolved.Kwargs["bypass_sandbox"] != "true" {
+		t.Fatalf("resolved kwargs alias input config: %v", resolved.Kwargs)
+	}
+	for _, want := range []string{"engine.entry is deprecated", "engine.model.params is deprecated"} {
+		if !strings.Contains(strings.Join(resolved.Warnings, "\n"), want) {
+			t.Fatalf("warnings = %v, want substring %q", resolved.Warnings, want)
+		}
 	}
 }
 
@@ -585,14 +590,12 @@ func TestResolveJudgeConfig_InheritsRunnerLifecycleWithoutAliasingKwargs(t *test
 		t.Setenv(key, "")
 	}
 	runner := ResolvedAgentConfig{
-		Role:        AgentRoleRunner,
-		Engine:      "codex",
-		Version:     "0.42.0",
-		Entry:       "codex",
-		Provider:    "openai",
-		Model:       "gpt-5.4",
-		Kwargs:      map[string]string{"bypass_sandbox": "true"},
-		ModelParams: map[string]string{"reasoning": "high"},
+		Role:     AgentRoleRunner,
+		Engine:   "codex",
+		Version:  "0.42.0",
+		Provider: "openai",
+		Model:    "gpt-5.4",
+		Kwargs:   map[string]string{"bypass_sandbox": "true"},
 	}
 
 	resolved := ResolveJudgeConfig(config.JudgeConfig{
@@ -600,16 +603,15 @@ func TestResolveJudgeConfig_InheritsRunnerLifecycleWithoutAliasingKwargs(t *test
 		Model: "anthropic/claude-sonnet-4-6",
 	}, runner, nil)
 
-	if resolved.Role != AgentRoleJudge || resolved.Engine != runner.Engine || resolved.Version != runner.Version || resolved.Entry != runner.Entry {
+	if resolved.Role != AgentRoleJudge || resolved.Engine != runner.Engine || resolved.Version != runner.Version {
 		t.Fatalf("judge lifecycle config = %#v, want runner engine lifecycle", resolved)
 	}
 	if resolved.Provider != "anthropic" || resolved.Model != "claude-sonnet-4-6" {
 		t.Fatalf("judge role model was not independently resolved: %#v", resolved)
 	}
 	runner.Kwargs["bypass_sandbox"] = "false"
-	runner.ModelParams["reasoning"] = "low"
-	if resolved.Kwargs["bypass_sandbox"] != "true" || resolved.ModelParams["reasoning"] != "high" {
-		t.Fatalf("judge config aliases runner maps: kwargs=%v params=%v", resolved.Kwargs, resolved.ModelParams)
+	if resolved.Kwargs["bypass_sandbox"] != "true" {
+		t.Fatalf("judge config aliases runner kwargs: %v", resolved.Kwargs)
 	}
 }
 

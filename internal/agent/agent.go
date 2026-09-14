@@ -130,7 +130,6 @@ type ArtifactFile struct {
 type Config struct {
 	Name            string
 	Version         string
-	Entry           string
 	InstallCmd      string
 	RunCmd          string // Command template for running agent; use %s for instruction placeholder
 	VersionCmd      string

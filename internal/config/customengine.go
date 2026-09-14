@@ -353,14 +353,6 @@ func resolveModelEnv(model *ModelConfig, opts ResolveCustomEngineOptions) []stri
 	} else {
 		model.BaseURL = v
 	}
-	for k, v := range model.Params {
-		rv, err := resolveEnvRefs(v)
-		if err != nil {
-			errs = append(errs, fmt.Sprintf("engine.model.params.%s: %s", k, err))
-			continue
-		}
-		model.Params[k] = rv
-	}
 	return errs
 }
 
