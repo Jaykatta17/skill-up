@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Legacy no-op `engine.entry` and `engine.model.params` values are now dropped
+  at the resolved-agent boundary with migration warnings. The v1alpha1 loader
+  continues to accept both fields; use custom-engine command configuration or
+  engine/custom kwargs instead.
+
 ## [0.11.0] - 2026-09-11
 
 ### Added
@@ -16,10 +22,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   unchanged unless the event log is explicitly enabled.
 
 ### Changed
-- Legacy no-op `engine.entry` and `engine.model.params` values are now dropped
-  at the resolved-agent boundary with migration warnings. The v1alpha1 loader
-  continues to accept both fields; use custom-engine command configuration or
-  engine/custom kwargs instead.
 - Agent execution now performs a side-effect-free binary and version preflight
   before each case. Host runtimes are never modified; isolated Claude Code,
   Codex, and Qwen Code runtimes honor concrete `engine.version` selections,
