@@ -1,0 +1,14 @@
+id: decode-marker
+title: Decode a marker through an installed Skill
+
+input:
+  prompt: |
+    Use the dsh-marker-reader skill to decode marker.txt. Follow the skill's
+    required response format exactly.
+
+context:
+  repo_fixture: evals/fixtures/repos/marker-project
+
+expect:
+  must_contain:
+    - DSH_SKILL_UP_OK=skill-up-dsh
