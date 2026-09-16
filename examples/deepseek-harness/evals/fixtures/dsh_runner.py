@@ -7,6 +7,7 @@ import argparse
 import json
 import os
 import re
+import signal
 import subprocess
 import sys
 import time
@@ -39,6 +40,78 @@ def redact_secrets(value: str) -> str:
         if secret:
             value = value.replace(secret, "[REDACTED]")
     return value
+
+
+def redact_data(value: Any) -> Any:
+    if isinstance(value, str):
+        return redact_secrets(value)
+    if isinstance(value, list):
+        return [redact_data(item) for item in value]
+    if isinstance(value, dict):
+        return {
+            redact_secrets(key) if isinstance(key, str) else key: redact_data(item)
+            for key, item in value.items()
+        }
+    return value
+
+
+def sanitize_run_artifacts(root: Path) -> None:
+    secrets = {
+        value.encode()
+        for name in ("DSH_API_KEY", "DASHSCOPE_EVAL_API_KEY")
+        if (value := os.environ.get(name, ""))
+    }
+    if not secrets:
+        return
+    for path in root.rglob("*"):
+        if not path.is_file():
+            continue
+        content = path.read_bytes()
+        sanitized = content
+        for secret in secrets:
+            sanitized = sanitized.replace(secret, b"[REDACTED]")
+        if sanitized != content:
+            path.write_bytes(sanitized)
+
+
+def terminate_process_tree(process: subprocess.Popen[str]) -> None:
+    if os.name == "nt":
+        subprocess.run(
+            ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+            capture_output=True,
+            check=False,
+        )
+        return
+    try:
+        os.killpg(process.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        return
+
+
+def run_dsh(
+    command: list[str], workspace: Path, env: dict[str, str], timeout: float
+) -> tuple[int, str, str, bool]:
+    process_options: dict[str, Any] = {}
+    if os.name == "nt":
+        process_options["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+    else:
+        process_options["start_new_session"] = True
+    process = subprocess.Popen(
+        command,
+        cwd=workspace,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        **process_options,
+    )
+    try:
+        stdout, stderr = process.communicate(timeout=timeout)
+        return process.returncode, stdout, stderr, False
+    except subprocess.TimeoutExpired:
+        terminate_process_tree(process)
+        stdout, stderr = process.communicate()
+        return 124, stdout, stderr, True
 
 
 def conversation_prompt(messages: list[dict[str, Any]]) -> str:
@@ -110,7 +183,7 @@ def transcript(messages: list[dict[str, Any]], final_message: str) -> list[dict[
         result.append(
             {
                 "role": role,
-                "content": str(message.get("content", "")),
+                "content": redact_secrets(str(message.get("content", ""))),
                 "turn": current_turn,
             }
         )
@@ -126,7 +199,7 @@ def content_text(blocks: Any) -> str:
         if not isinstance(block, dict):
             continue
         if block.get("type") == "text" and block.get("text"):
-            parts.append(str(block["text"]))
+            parts.append(redact_secrets(str(block["text"])))
         elif block.get("type") == "tool-result":
             nested = content_text(block.get("content"))
             if nested:
@@ -136,14 +209,15 @@ def content_text(blocks: Any) -> str:
 
 def parse_arguments(raw: Any) -> dict[str, Any]:
     if isinstance(raw, dict):
-        return raw
+        return redact_data(raw)
     if not isinstance(raw, str) or not raw:
         return {}
     try:
         parsed = json.loads(raw)
     except json.JSONDecodeError:
-        return {"_raw": raw}
-    return parsed if isinstance(parsed, dict) else {"_raw": raw}
+        return {"_raw": redact_secrets(raw)}
+    value = parsed if isinstance(parsed, dict) else {"_raw": raw}
+    return redact_data(value)
 
 
 def read_session(
@@ -206,7 +280,7 @@ def read_session(
                     events.append(
                         {
                             "role": "assistant",
-                            "content": str(block["text"]),
+                            "content": redact_secrets(str(block["text"])),
                             "turn": turn,
                         }
                     )
@@ -250,7 +324,7 @@ def read_session(
         normalized_inputs.append(
             {
                 "role": role,
-                "content": str(message.get("content", "")),
+                "content": redact_secrets(str(message.get("content", ""))),
                 "turn": current_turn,
             }
         )
@@ -298,37 +372,30 @@ def main() -> int:
     env.setdefault("DSH_PERMISSION_MODE", "danger-full-access")
 
     started = time.monotonic()
-    try:
-        completed = subprocess.run(
-            [
-                env.get("DSH_BIN", "dsh"),
-                "--profile",
-                "headless",
-                "--",
-                "--",
-                prompt,
-            ],
-            cwd=workspace,
-            env=env,
-            capture_output=True,
-            text=True,
-            timeout=dsh_timeout,
-            check=False,
-        )
-        exit_code = completed.returncode
-        final_message = output_text(completed.stdout).strip()
-        stderr = redact_secrets(output_text(completed.stderr))
-        if exit_code != 0 and not stderr.strip():
-            stderr = redact_secrets(final_message)
-    except subprocess.TimeoutExpired as exc:
-        exit_code = 124
-        final_message = output_text(exc.stdout).strip()
-        stderr = redact_secrets(output_text(exc.stderr))
+    exit_code, stdout, raw_stderr, timed_out = run_dsh(
+        [
+            env.get("DSH_BIN", "dsh"),
+            "--profile",
+            "headless",
+            "--",
+            "--",
+            prompt,
+        ],
+        workspace,
+        env,
+        dsh_timeout,
+    )
+    final_message = redact_secrets(output_text(stdout).strip())
+    stderr = redact_secrets(output_text(raw_stderr))
+    if exit_code != 0 and not stderr.strip():
+        stderr = final_message
+    if timed_out:
         stderr += f"\nDSH timed out after {dsh_timeout:g}s"
 
     duration_ms = int((time.monotonic() - started) * 1000)
     stderr_path = home / "stderr.log"
     stderr_path.write_text(stderr)
+    sanitize_run_artifacts(home)
     generated_files = [
         str(path.relative_to(workspace))
         for path in sorted(home.rglob("*"))

@@ -36,8 +36,8 @@ The runner creates a fresh `.skill-up-dsh/runs/<run-id>/` home for every case
 variant, disables DSH telemetry, configures the DashScope OpenAI-compatible
 route, exposes the installed Skill directory to DSH, and returns skill-up's
 structured `SessionResult`, including tool calls, tool results, and token
-counts. Raw DSH session JSONL and stderr are retained as run artifacts for
-debugging.
+counts. DSH session JSONL and stderr are retained as run artifacts for
+debugging after injected credentials are redacted.
 
 This is an experimental local integration. MCP installation and native
 turn-by-turn session resume are not provided by skill-up's Custom Engine.
