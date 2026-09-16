@@ -470,8 +470,9 @@ func TestEvaluatorSessionHelpers(t *testing.T) {
 			{Role: transcript.RoleToolCall, Content: "tool"},
 		},
 		Artifacts: &agent.SessionArtifacts{
-			WorkspaceDiff:  "diff",
-			GeneratedFiles: []string{"a.txt"},
+			WorkspaceDiff:        "diff",
+			GeneratedFiles:       []string{"snapshot.txt"},
+			GeneratedFileSources: []string{"workspace.txt"},
 		},
 	}
 	normalized := normalizeSessionResult(original)
@@ -487,13 +488,16 @@ func TestEvaluatorSessionHelpers(t *testing.T) {
 	if sessionWorkspaceDiff(original) != "diff" {
 		t.Fatal("sessionWorkspaceDiff did not return diff")
 	}
-	if got := sessionGeneratedFiles(original); len(got) != 1 || got[0] != "a.txt" {
-		t.Fatalf("sessionGeneratedFiles = %#v, want a.txt", got)
+	if got := sessionGeneratedFiles(original); len(got) != 1 || got[0] != "snapshot.txt" {
+		t.Fatalf("sessionGeneratedFiles = %#v, want only snapshot.txt", got)
+	}
+	if got := sessionGeneratedFilesForDiff(original); len(got) != 2 || got[0] != "snapshot.txt" || got[1] != "workspace.txt" {
+		t.Fatalf("sessionGeneratedFilesForDiff = %#v, want snapshot and workspace paths", got)
 	}
 	if normalizeSessionResult(nil) == nil {
 		t.Fatal("normalizeSessionResult(nil) returned nil")
 	}
-	if sessionTranscript(nil) != nil || sessionWorkspaceDiff(nil) != "" || sessionGeneratedFiles(nil) != nil {
+	if sessionTranscript(nil) != nil || sessionWorkspaceDiff(nil) != "" || sessionGeneratedFiles(nil) != nil || sessionGeneratedFilesForDiff(nil) != nil {
 		t.Fatal("nil session helpers should return empty values")
 	}
 }

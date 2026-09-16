@@ -1321,7 +1321,7 @@ func (e *defaultEvaluator) prepareWorkspaceArtifacts(ctx context.Context, rt run
 		if sessionResult == nil || !state.enabled {
 			return
 		}
-		workspaceDiff, diffErr := collectWorkspaceDiff(ctx, rt, state, sessionGeneratedFiles(sessionResult))
+		workspaceDiff, diffErr := collectWorkspaceDiff(ctx, rt, state, sessionGeneratedFilesForDiff(sessionResult))
 		if diffErr != nil {
 			logging.WarnContextf(ctx, "Judge: failed to collect workspace diff for case %s: %v", caseCfg.ID, diffErr)
 			return
@@ -1354,6 +1354,13 @@ func sessionWorkspaceDiff(sessionResult *agent.SessionResult) string {
 }
 
 func sessionGeneratedFiles(sessionResult *agent.SessionResult) []string {
+	if sessionResult == nil || sessionResult.Artifacts == nil {
+		return nil
+	}
+	return sessionResult.Artifacts.GeneratedFiles
+}
+
+func sessionGeneratedFilesForDiff(sessionResult *agent.SessionResult) []string {
 	if sessionResult == nil || sessionResult.Artifacts == nil {
 		return nil
 	}
