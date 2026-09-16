@@ -876,7 +876,9 @@ benchmark:
 
 ## Credentials
 
-Evaluations call Agent Engines and model APIs, so credentials are required. Resolution order, highest priority first:
+Evaluations call Agent Engines and may call model APIs. You can inject
+credentials through skill-up, or omit them when the selected engine can use an
+existing local login. Credential resolution order, highest priority first:
 
 ### 1. CLI flag (transient override)
 
@@ -914,6 +916,94 @@ providers:
     api_key: sk-xxx
     base_url: https://api.openai.com/v1    # Optional, useful for proxies
 ```
+
+### Common connection recipes
+
+#### Use an existing local login
+
+Keep the provider, model, and API key empty and use the host runtime. skill-up
+checks that the CLI is installed, but does not make a token-consuming request
+to validate its login. The first real case run performs that validation.
+
+```yaml
+environment:
+  type: none
+engine:
+  name: codex                 # also applies to claude_code, qodercli, and qwen_code
+  model: {}
+```
+
+Agent-native configuration and login databases remain owned by the CLI. A host
+login is not automatically copied into Docker or OpenSandbox runtimes.
+
+#### Inject a named provider connection
+
+Use an explicit provider when the model identifier should not select the
+credential namespace. Provider-scoped environment variables supply the
+connection without putting secrets in the eval file:
+
+```bash
+export DASHSCOPE_API_KEY=your-key
+export DASHSCOPE_BASE_URL=https://dashscope.example.com/compatible-mode/v1
+
+skill-up run ./evals/eval.yaml \
+  --engine codex \
+  --provider dashscope \
+  --model qwen3-coder-plus
+```
+
+The engine selects the protocol; the provider selects the credential and
+endpoint namespace. In this example Codex uses DashScope's OpenAI-compatible
+endpoint.
+
+#### Configure one gateway for multiple protocols
+
+A provider entry may define protocol-specific endpoints. The selected engine
+chooses one endpoint; skill-up does not infer an engine from the provider:
+
+```yaml
+# ~/.skill-up/credentials.yaml
+providers:
+  company_gateway:
+    api_key: <gateway-api-key>
+    openai:
+      base_url: https://gateway.example.com/openai/v1
+    anthropic:
+      base_url: https://gateway.example.com/anthropic
+```
+
+```yaml
+# eval.yaml
+engine:
+  name: codex
+  model:
+    provider: company_gateway
+    name: team/model-v2
+```
+
+Changing the engine to `claude_code` selects the Anthropic-compatible endpoint
+under the same provider namespace.
+
+#### Opaque and legacy slashed model IDs
+
+With `--provider`, the entire `--model` value is opaque, including `/`:
+
+```bash
+skill-up run ./evals/eval.yaml \
+  --engine codex \
+  --provider company_gateway \
+  --model team/model-v2
+```
+
+Without `--provider`, the historical `provider/model` form remains supported
+when the prefix is a known or configured provider:
+
+```bash
+skill-up run ./evals/eval.yaml --engine codex --model openai/gpt-5.4
+```
+
+An unknown prefix is preserved as part of the model ID rather than being
+guessed as a provider.
 
 ### qodercli credentials
 

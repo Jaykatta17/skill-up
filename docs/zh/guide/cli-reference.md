@@ -54,6 +54,11 @@ skill-up run ./evals/eval.yaml --engine codex --model openai/gpt-4
 # 当前缀不是已配置 provider 时，保留包含斜杠的上游模型 ID
 skill-up run ./evals/eval.yaml --engine claude_code --model anthropic_modelscope/deepseek-v4-pro
 
+# 显式指定已配置的 provider 后，无条件保留带斜杠的完整模型 ID
+export GATEWAY_API_KEY=your-key
+export GATEWAY_BASE_URL=https://gateway.example.com/openai/v1
+skill-up run ./evals/eval.yaml --engine codex --provider gateway --model team/model-v2
+
 # 临时覆盖用例并行数
 skill-up run ./evals/eval.yaml --parallelism 4
 

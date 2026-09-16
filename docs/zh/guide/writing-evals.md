@@ -832,7 +832,8 @@ benchmark:
 
 ## 凭据配置
 
-评测需要调用 Agent Engine 和模型 API，你需要提供凭据。按优先级从高到低：
+评测需要调用 Agent Engine，并且可能调用模型 API。你既可以通过 skill-up
+注入凭据，也可以在所选 Engine 支持时沿用本地已有登录态。凭据解析优先级从高到低：
 
 ### 1. 命令行参数（临时覆盖）
 
@@ -870,6 +871,91 @@ providers:
     api_key: sk-xxx
     base_url: https://api.openai.com/v1    # 可选，支持代理
 ```
+
+### 常见连接方式
+
+#### 沿用本地登录态
+
+让 provider、model 和 API key 保持为空，并使用宿主机 runtime。skill-up
+只会检查 CLI 是否安装，不会为了验证登录态而发起消耗 token 的请求；登录态会在
+第一个真实用例执行时得到验证。
+
+```yaml
+environment:
+  type: none
+engine:
+  name: codex                 # claude_code、qodercli、qwen_code 同样适用
+  model: {}
+```
+
+Agent 自身的配置文件和登录数据库仍由对应 CLI 管理。宿主机登录态不会自动复制到
+Docker 或 OpenSandbox runtime。
+
+#### 注入指定 provider 的连接
+
+当模型 ID 不应该决定凭据命名空间时，应显式指定 provider。使用 provider 作用域的
+环境变量可避免将密钥写入 eval 文件：
+
+```bash
+export DASHSCOPE_API_KEY=your-key
+export DASHSCOPE_BASE_URL=https://dashscope.example.com/compatible-mode/v1
+
+skill-up run ./evals/eval.yaml \
+  --engine codex \
+  --provider dashscope \
+  --model qwen3-coder-plus
+```
+
+Engine 决定协议，provider 决定凭据和端点命名空间。这个例子中 Codex 使用
+DashScope 的 OpenAI 兼容端点。
+
+#### 为同一个 gateway 配置多种协议
+
+一个 provider 可以声明不同协议的端点。所选 Engine 决定使用哪个端点；skill-up
+不会从 provider 反推 Engine：
+
+```yaml
+# ~/.skill-up/credentials.yaml
+providers:
+  company_gateway:
+    api_key: <gateway-api-key>
+    openai:
+      base_url: https://gateway.example.com/openai/v1
+    anthropic:
+      base_url: https://gateway.example.com/anthropic
+```
+
+```yaml
+# eval.yaml
+engine:
+  name: codex
+  model:
+    provider: company_gateway
+    name: team/model-v2
+```
+
+将 Engine 改为 `claude_code` 后，会选择同一 provider 命名空间下的 Anthropic
+兼容端点。
+
+#### 不透明模型 ID 与历史斜杠写法
+
+显式指定 `--provider` 后，完整的 `--model`（包括 `/`）都会作为不透明值透传：
+
+```bash
+skill-up run ./evals/eval.yaml \
+  --engine codex \
+  --provider company_gateway \
+  --model team/model-v2
+```
+
+未指定 `--provider` 时，如果前缀是已知或已配置的 provider，历史
+`provider/model` 写法仍然兼容：
+
+```bash
+skill-up run ./evals/eval.yaml --engine codex --model openai/gpt-5.4
+```
+
+未知前缀会作为模型 ID 的一部分完整保留，不会被猜测成 provider。
 
 ### qodercli 凭据说明
 

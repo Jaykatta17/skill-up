@@ -63,6 +63,11 @@ skill-up run ./evals/eval.yaml --engine codex --model openai/gpt-4
 # Preserve an opaque upstream model ID when its prefix is not a configured provider
 skill-up run ./evals/eval.yaml --engine claude_code --model anthropic_modelscope/deepseek-v4-pro
 
+# Preserve a slashed model ID unconditionally with a configured provider
+export GATEWAY_API_KEY=your-key
+export GATEWAY_BASE_URL=https://gateway.example.com/openai/v1
+skill-up run ./evals/eval.yaml --engine codex --provider gateway --model team/model-v2
+
 # Temporarily override case parallelism
 skill-up run ./evals/eval.yaml --parallelism 4
 
