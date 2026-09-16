@@ -280,7 +280,7 @@ func TestResolveCustomEngineConfig_RejectsAPIKeyTemplateInCommand(t *testing.T) 
 }
 
 func TestResolveCustomEngineConfig_RejectsAggregateKwargsInCommand(t *testing.T) {
-	for _, ref := range []string{"${kwargs}", "${kwargs_json}", "${session_input}", "${session_input_json}"} {
+	for _, ref := range []string{"${kwargs}", "${kwargs_json}", "${session_id}", "${session_input}", "${session_input_json}"} {
 		cfg := customEngineEvalConfig("my-agent", &CustomEngineConfig{
 			Transport: "local",
 			Local: &CustomLocalConfig{
@@ -482,7 +482,7 @@ func TestIsSensitiveEnvName(t *testing.T) {
 }
 
 func TestIsBuiltinTemplateVar(t *testing.T) {
-	for _, name := range []string{"workspace", "prompt", "api_key", "input_file", "kwargs", "kwargs.profile"} {
+	for _, name := range []string{"workspace", "prompt", "api_key", "input_file", "session_id", "kwargs", "kwargs.profile"} {
 		if !IsBuiltinTemplateVar(name) {
 			t.Errorf("IsBuiltinTemplateVar(%q) = false, want true", name)
 		}

@@ -128,6 +128,10 @@ func TestCustomAgent_RunTurnHTTP_PropagatesRotatingSessionID(t *testing.T) {
 
 	custom := httpEngine(srv.URL)
 	custom.ConversationMode = "stateful"
+	custom.HTTP.RequestBody = map[string]any{
+		"session_id": "${session_id}",
+		"messages":   "${messages}",
+	}
 	ag, err := DetectAgent("my-agent", Config{Name: "my-agent", Custom: custom})
 	if err != nil {
 		t.Fatalf("DetectAgent: %v", err)

@@ -156,6 +156,7 @@ type customRunPrep struct {
 	custom     *customengine.Config
 	vars       map[string]string
 	sessJSON   []byte
+	sessionID  string
 	timeoutSec int
 	messages   []transcript.Message
 	start      time.Time
@@ -269,6 +270,7 @@ func (a *CustomAgent) prepareRun(rt Runtime, opts ExecOptions, messages []transc
 		custom:     custom,
 		vars:       vars,
 		sessJSON:   sessJSON,
+		sessionID:  sessionID,
 		timeoutSec: timeoutSec,
 		messages:   messages,
 		start:      start,

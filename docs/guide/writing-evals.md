@@ -254,6 +254,7 @@ Key fields (full contract in [docs/design/custom-engine.md](../design/custom-eng
 - **`conversation_mode`** (optional, default `batch`) — how `input.turns` is delivered.
   - `batch`: preserve the existing behavior and invoke the Custom Engine once with every configured message.
   - `stateful`: invoke the same local command or HTTP endpoint once per user turn. The first `SessionInput` omits `session_id`; each later invocation receives the ID returned by the preceding `SessionResult`. This mode requires `response_format: session_result`.
+    A custom HTTP `request_body` can place that value with `${session_id}`; it is an empty string on the first invocation.
 - **`timeout_seconds`** (optional) — per-call deadline. Falls back to the case-level timeout when unset; when both are set, skill-up takes the smaller of the two so the value handed to the agent matches the real wall-clock budget.
 - **`env`** (optional) — credentials and secret parameters. Values are injected into the agent process as environment variables. **This is the only channel allowed to carry credentials**: `command` / `args` / `cwd` / `input_file` / `output_file` reject secret-shaped values at config load.
 - **`kwargs`** (optional) — non-secret knobs exposed to templates as `${kwargs.<key>}`. Unlike `env`, kwargs are subject to the same strict secret-rejection as command-line fields, so they must not carry credentials or credential-shaped keys.

@@ -377,6 +377,7 @@ The Custom Engine config also supports the following template variables provided
 | `${messages}` | The current case's message array; used as a structured value only inside a JSON body, payload, or input-file template |
 | `${session_input}` | The standard SessionInput structure; used as a structured value only inside a JSON body, payload, or input-file template |
 | `${session_input_json}` | The standard SessionInput as a JSON string |
+| `${session_id}` | The previous turn's continuation ID, available only in `custom.http.request_body`; empty on the first stateful invocation |
 | `${input_file}` | Suggested runtime input file path, default `inputs/messages.json` |
 | `${output_file}` | Suggested runtime output file path, default `outputs/session-result.json` |
 | `${model}` | Model reference in `provider/name` form; empty string when `engine.model` is unset |

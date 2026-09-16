@@ -86,7 +86,7 @@ func looksLikeSecret(s string) bool {
 // embeds the whole kwargs map and could therefore contain secret-like keys.
 func isSensitiveTemplateVar(name string) bool {
 	switch name {
-	case "api_key", "kwargs", "kwargs_json", "session_input", "session_input_json":
+	case "api_key", "kwargs", "kwargs_json", "session_id", "session_input", "session_input_json":
 		return true
 	}
 	if key, ok := strings.CutPrefix(name, "kwargs."); ok {
@@ -135,6 +135,7 @@ var builtinTemplateVars = map[string]struct{}{
 	"messages_json":      {},
 	"session_input":      {},
 	"session_input_json": {},
+	"session_id":         {},
 	"input_file":         {},
 	"output_file":        {},
 	"model":              {},
