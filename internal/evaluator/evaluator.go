@@ -1357,7 +1357,10 @@ func sessionGeneratedFiles(sessionResult *agent.SessionResult) []string {
 	if sessionResult == nil || sessionResult.Artifacts == nil {
 		return nil
 	}
-	return sessionResult.Artifacts.GeneratedFiles
+	files := make([]string, 0, len(sessionResult.Artifacts.GeneratedFiles)+len(sessionResult.Artifacts.GeneratedFileSources))
+	files = append(files, sessionResult.Artifacts.GeneratedFiles...)
+	files = append(files, sessionResult.Artifacts.GeneratedFileSources...)
+	return files
 }
 
 // toJudgeTurnResults converts evaluator TurnResults to judge InputTurnResults.

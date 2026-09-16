@@ -78,6 +78,25 @@ type CustomAgent struct {
 	BaseAgent
 }
 
+// statefulCustomAgent adds the optional SessionResumer capability only for
+// custom engines that explicitly opt into stateful conversation mode. Keeping
+// it as a wrapper preserves batch behavior for every existing configuration.
+type statefulCustomAgent struct {
+	*CustomAgent
+}
+
+func newStatefulCustomAgent(agent *CustomAgent) *statefulCustomAgent {
+	return &statefulCustomAgent{CustomAgent: agent}
+}
+
+func (a *statefulCustomAgent) RunTurn(ctx context.Context, rt Runtime, opts ExecOptions, message transcript.Message, sessionID string) (*SessionResult, error) {
+	return a.executeCustom(ctx, rt, opts, []transcript.Message{message}, sessionID)
+}
+
+func (*statefulCustomAgent) RequiresSessionIDForNextTurn() bool { return true }
+
+func (*statefulCustomAgent) ReturnsIncrementalSessionResults() bool { return true }
+
 // NewCustomAgent creates a CustomAgent from a resolved agent Config. The
 // caller must populate cfg.Custom; factory dispatch guarantees this.
 func NewCustomAgent(cfg Config) *CustomAgent {
@@ -162,6 +181,10 @@ type transportOutcome struct {
 // Run executes the custom engine for a single case: it builds the shared
 // session input, selects the transport, runs it, and assembles the result.
 func (a *CustomAgent) Run(ctx context.Context, rt Runtime, opts ExecOptions, messages []transcript.Message) (finalResult *SessionResult, finalErr error) {
+	return a.executeCustom(ctx, rt, opts, messages, "")
+}
+
+func (a *CustomAgent) executeCustom(ctx context.Context, rt Runtime, opts ExecOptions, messages []transcript.Message, sessionID string) (finalResult *SessionResult, finalErr error) {
 	defer func() { a.annotateSessionResult(finalResult) }()
 	custom := a.Cfg.Custom
 	if custom == nil {
@@ -171,7 +194,7 @@ func (a *CustomAgent) Run(ctx context.Context, rt Runtime, opts ExecOptions, mes
 	if err != nil {
 		return a.errorResult(0), err
 	}
-	prep, err := a.prepareRun(rt, opts, messages, custom)
+	prep, err := a.prepareRun(rt, opts, messages, sessionID, custom)
 	if err != nil {
 		return a.errorResult(0), err
 	}
@@ -201,7 +224,7 @@ func (a *CustomAgent) selectTransport(custom *customengine.Config) (customTransp
 // full template variable set, and the marshaled SessionInput. start is captured
 // here so the reported duration spans preparation through result assembly,
 // matching the pre-refactor behavior.
-func (a *CustomAgent) prepareRun(rt Runtime, opts ExecOptions, messages []transcript.Message, custom *customengine.Config) (*customRunPrep, error) {
+func (a *CustomAgent) prepareRun(rt Runtime, opts ExecOptions, messages []transcript.Message, sessionID string, custom *customengine.Config) (*customRunPrep, error) {
 	start := time.Now()
 	// engine.custom.timeout_seconds is the per-engine deadline; opts.TimeoutSec
 	// is the outer case deadline (the evaluator already wraps ctx with it).
@@ -229,7 +252,7 @@ func (a *CustomAgent) prepareRun(rt Runtime, opts ExecOptions, messages []transc
 		return nil, fmt.Errorf("render custom.kwargs: %w", err)
 	}
 
-	sess := a.buildSessionInput(rt, opts, messages, renderedKwargs, timeoutSec)
+	sess := a.buildSessionInput(rt, opts, messages, sessionID, renderedKwargs, timeoutSec)
 	// Marshal the session input once and share the bytes between the template
 	// expansion (${session_input}) and the on-disk input file, avoiding a second
 	// copy of what for long transcripts can be tens of MB per case.
@@ -481,6 +504,7 @@ func (a *CustomAgent) readRawResult(ctx context.Context, rt Runtime, custom *cus
 type parsedSessionResult struct {
 	Engine       string                `json:"engine"`
 	Model        string                `json:"model"`
+	SessionID    string                `json:"session_id"`
 	ExitCode     *int                  `json:"exit_code"`
 	DurationMs   int64                 `json:"duration_ms"`
 	Turns        int                   `json:"turns"`
@@ -547,6 +571,7 @@ func (a *CustomAgent) parseSessionResult(ctx context.Context, rt Runtime, opts E
 	res := &SessionResult{
 		Engine:       firstNonEmpty(a.maskAPIKey(parsed.Engine), a.Name()),
 		Model:        a.maskAPIKey(parsed.Model),
+		SessionID:    parsed.SessionID,
 		ExitCode:     *parsed.ExitCode,
 		DurationMs:   parsed.DurationMs,
 		Turns:        turns,
@@ -991,6 +1016,7 @@ type SessionInput struct {
 	Variant        string            `json:"variant,omitempty"`
 	Workspace      string            `json:"workspace,omitempty"`
 	Model          string            `json:"model,omitempty"`
+	SessionID      string            `json:"session_id,omitempty"`
 	Kwargs         map[string]string `json:"kwargs,omitempty"`
 	Messages       []SessionMessage  `json:"messages"`
 	MaxTurns       int               `json:"max_turns,omitempty"`
@@ -1004,7 +1030,7 @@ type SessionMessage struct {
 	Content string `json:"content"`
 }
 
-func (a *CustomAgent) buildSessionInput(rt Runtime, opts ExecOptions, messages []transcript.Message, kwargs map[string]string, timeoutSec int) SessionInput {
+func (a *CustomAgent) buildSessionInput(rt Runtime, opts ExecOptions, messages []transcript.Message, sessionID string, kwargs map[string]string, timeoutSec int) SessionInput {
 	msgs := make([]SessionMessage, 0, len(messages))
 	for _, m := range messages {
 		msgs = append(msgs, SessionMessage{Role: string(m.Role), Content: m.Content})
@@ -1015,6 +1041,7 @@ func (a *CustomAgent) buildSessionInput(rt Runtime, opts ExecOptions, messages [
 		Variant:        meta.Variant,
 		Workspace:      rt.Workspace(),
 		Model:          formatAgentModel(a.Cfg.ModelProvider, a.Cfg.ModelName),
+		SessionID:      sessionID,
 		Kwargs:         kwargs,
 		Messages:       msgs,
 		MaxTurns:       meta.MaxTurns,

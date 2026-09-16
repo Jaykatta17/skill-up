@@ -895,6 +895,56 @@ func TestDetectAgent_CustomDispatch(t *testing.T) {
 	if _, ok := ag.(*CustomAgent); !ok {
 		t.Fatalf("agent type = %T, want *CustomAgent", ag)
 	}
+	if _, ok := ag.(SessionResumer); ok {
+		t.Fatalf("batch custom agent type %T unexpectedly implements SessionResumer", ag)
+	}
+}
+
+func TestDetectAgent_StatefulCustomDispatch(t *testing.T) {
+	t.Parallel()
+	custom := &config.CustomEngineConfig{
+		Transport:        "local",
+		ConversationMode: "stateful",
+		Local:            &config.CustomLocalConfig{Command: "/opt/agent"},
+	}
+	ag, err := DetectAgent("my-agent", Config{Name: "my-agent", Custom: custom})
+	if err != nil {
+		t.Fatalf("DetectAgent: %v", err)
+	}
+	if _, ok := ag.(SessionResumer); !ok {
+		t.Fatalf("stateful custom agent type %T does not implement SessionResumer", ag)
+	}
+	if _, ok := ag.(*CustomAgent); ok {
+		t.Fatalf("stateful custom agent type = %T, want opt-in wrapper", ag)
+	}
+}
+
+func TestCustomAgent_RunTurnLocal_PropagatesSessionID(t *testing.T) {
+	t.Parallel()
+	rt := newCustomTestRuntime(t)
+	custom := &config.CustomEngineConfig{
+		Transport:        "local",
+		ConversationMode: "stateful",
+		Local: &config.CustomLocalConfig{
+			Command: "sh",
+			Args:    []string{"-c", `session_id=$(sed -n 's/.*"session_id":"\([^"]*\)".*/\1/p' "$1"); printf '{"exit_code":0,"session_id":"next","final_message":"%s"}' "$session_id"`, "sh", "${input_file}"},
+		},
+	}
+	ag, err := DetectAgent("my-agent", Config{Name: "my-agent", Custom: custom})
+	if err != nil {
+		t.Fatalf("DetectAgent: %v", err)
+	}
+	resumer, ok := ag.(SessionResumer)
+	if !ok {
+		t.Fatalf("agent type %T does not implement SessionResumer", ag)
+	}
+	result, err := resumer.RunTurn(context.Background(), rt, ExecOptions{}, transcript.Message{Role: transcript.RoleUser, Content: "continue"}, "prior-session")
+	if err != nil {
+		t.Fatalf("RunTurn: %v", err)
+	}
+	if result.FinalMessage != "prior-session" || result.SessionID != "next" {
+		t.Fatalf("result = %#v, want propagated prior session and returned next session", result)
+	}
 }
 
 func TestDetectAgent_NonBuiltinWithoutCustom(t *testing.T) {

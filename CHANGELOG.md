@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Custom Engines can opt into stateful multi-turn execution with
+  `custom.conversation_mode: stateful`. Local and HTTP transports receive one
+  user message per invocation and carry the returned `session_id` into the
+  next turn, enabling post-conditions, captures, early stopping, and per-turn
+  judge assertions without changing existing batch configurations.
+
 ### Changed
 - Legacy no-op `engine.entry` and `engine.model.params` values are now dropped
   at the resolved-agent boundary with migration warnings. The v1alpha1 loader

@@ -215,6 +215,7 @@ func resolveCustomEngineEnv(cfg *EvalConfig, opts ResolveCustomEngineOptions) er
 
 	errs := modelErrs
 	errs = append(errs, resolveScalarEnv("transport", &custom.Transport)...)
+	errs = append(errs, resolveScalarEnv("conversation_mode", &custom.ConversationMode)...)
 	errs = append(errs, resolveScalarEnv("response_format", &custom.ResponseFormat)...)
 	errs = append(errs, resolveStringMapEnv("env", custom.Env)...)
 	// kwargs values can be expanded into a command line via ${kwargs.<key>},
