@@ -168,8 +168,8 @@ type customRunPrep struct {
 // them). raw is the result payload graded for session_result responses; stdout
 // is the text-format final-message source (the local transport keeps them
 // distinct so a bookkeeping output_file is never graded as a text answer).
-// frameworkFiles are the framework-written paths (input/output files) to record
-// in GeneratedFiles so the workspace-diff collector excludes them.
+// frameworkFiles are framework-written input/output paths retained only for
+// workspace-diff exclusion; they are not exposed as generated artifacts.
 type transportOutcome struct {
 	raw            string
 	stdout         string
@@ -437,16 +437,17 @@ func (a *CustomAgent) buildResult(ctx context.Context, rt Runtime, opts ExecOpti
 	return a.parseSessionResult(ctx, rt, opts, raw, durationMs, messages)
 }
 
-// appendFrameworkFiles records the framework-written files in GeneratedFiles so
-// the workspace-diff collector excludes them (they would otherwise show up as
-// user changes) and they are archived for debugging. The transport decides
+// appendFrameworkFiles records the framework-written files as source paths so
+// the workspace-diff collector excludes them without exposing framework JSON
+// (which may contain a resumable session ID) to judges or report artifacts.
+// The transport decides
 // which files belong in the slice — for the local transport, the input file
 // always, and the output file only when it was produced or cleared.
 func (a *CustomAgent) appendFrameworkFiles(res *SessionResult, files []string) {
 	if res.Artifacts == nil {
 		res.Artifacts = &SessionArtifacts{}
 	}
-	res.Artifacts.GeneratedFiles = append(res.Artifacts.GeneratedFiles, files...)
+	res.Artifacts.GeneratedFileSources = append(res.Artifacts.GeneratedFileSources, files...)
 }
 
 // readRawResult reads the result payload from the output file, or from stdout.

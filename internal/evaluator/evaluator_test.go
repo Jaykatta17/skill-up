@@ -2016,7 +2016,7 @@ func TestExecuteCase_JudgeCorrectionPreservesAttemptArtifactsOnSuccess(t *testin
 	}
 }
 
-func TestExecuteCase_CustomJudgeCorrectionSnapshotsFrameworkFiles(t *testing.T) { //nolint:funlen // Integration coverage intentionally exercises the real CustomAgent and evaluator artifact pipeline.
+func TestExecuteCase_CustomJudgeCorrectionExcludesFrameworkFiles(t *testing.T) { //nolint:funlen // Integration coverage intentionally exercises the real CustomAgent and evaluator artifact pipeline.
 	outputDir := t.TempDir()
 	scriptPath := filepath.Join(t.TempDir(), "custom-judge.sh")
 	script := `#!/bin/sh
@@ -2080,32 +2080,23 @@ printf '%s\n' "$result" > "$output_file"
 		t.Fatalf("two independent Judge runs must report two turns, got %#v", result.JudgeSession)
 	}
 
+	if result.JudgeSession.Artifacts == nil {
+		t.Fatal("expected judge session artifacts")
+	}
+	if len(result.JudgeSession.Artifacts.GeneratedFiles) != 2 ||
+		!slices.ContainsFunc(result.JudgeSession.Artifacts.GeneratedFiles, func(path string) bool { return filepath.Base(path) == "raw-response-attempt-1.txt" }) ||
+		!slices.ContainsFunc(result.JudgeSession.Artifacts.GeneratedFiles, func(path string) bool { return filepath.Base(path) == "raw-response-attempt-2.txt" }) {
+		t.Fatalf("judge artifacts = %v, want only raw response snapshots", result.JudgeSession.Artifacts.GeneratedFiles)
+	}
+	if len(result.JudgeSession.Artifacts.GeneratedFileSources) != 2 {
+		t.Fatalf("framework diff exclusions = %v, want input/output paths", result.JudgeSession.Artifacts.GeneratedFileSources)
+	}
 	judgeDir := filepath.Join(outputDir, caseCfg.ID, "with_skill", "outputs", "judge", "run")
-	firstInput := readTestFile(t, filepath.Join(judgeDir, "messages.json"))
-	retryInput := readTestFile(t, filepath.Join(judgeDir, "retry", "messages.json"))
-	firstOutput := readTestFile(t, filepath.Join(judgeDir, "session-result.json"))
-	retryOutput := readTestFile(t, filepath.Join(judgeDir, "retry", "session-result.json"))
-	if !strings.Contains(firstInput, "configured criterion") || strings.Contains(firstInput, "Agent Judge Output Correction") {
-		t.Fatalf("unexpected first Judge input snapshot: %s", firstInput)
+	for _, relativePath := range []string{"messages.json", "session-result.json", "retry/messages.json", "retry/session-result.json"} {
+		if _, err := os.Stat(filepath.Join(judgeDir, relativePath)); !os.IsNotExist(err) {
+			t.Fatalf("framework artifact %s should not be archived, stat error: %v", relativePath, err)
+		}
 	}
-	if !strings.Contains(retryInput, "Agent Judge Output Correction") || !strings.Contains(retryInput, "not-json") {
-		t.Fatalf("retry input snapshot lost correction context: %s", retryInput)
-	}
-	if !strings.Contains(firstOutput, `"final_message":"not-json"`) {
-		t.Fatalf("first output snapshot was overwritten: %s", firstOutput)
-	}
-	if !strings.Contains(retryOutput, `criterion-1`) || strings.Contains(retryOutput, `"final_message":"not-json"`) {
-		t.Fatalf("unexpected retry output snapshot: %s", retryOutput)
-	}
-}
-
-func readTestFile(t *testing.T, path string) string {
-	t.Helper()
-	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("read %s: %v", path, err)
-	}
-	return string(data)
 }
 
 func TestExecuteCase_CaseLevelJudge(t *testing.T) {
