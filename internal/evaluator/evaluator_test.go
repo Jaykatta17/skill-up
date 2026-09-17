@@ -2460,6 +2460,57 @@ func TestExecuteCase_AgentJudgeWithExistingGitRepoReceivesWorkspaceDiff(t *testi
 	assertJudgePromptReferencesMaterial(t, *judgePrompt, "workspace_diff", "workspace.diff")
 }
 
+func TestExecuteCase_AgentJudgeWithExternalWorkspacePreservesGitState(t *testing.T) {
+	repoDir := t.TempDir()
+	workspace := filepath.Join(repoDir, "project")
+	if err := os.Mkdir(workspace, 0o755); err != nil {
+		t.Fatalf("create workspace subdirectory: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(workspace, "notes.txt"), []byte("committed\n"), 0o600); err != nil {
+		t.Fatalf("write initial file: %v", err)
+	}
+	initGitRepo(t, repoDir)
+	if err := os.WriteFile(filepath.Join(repoDir, "staged.txt"), []byte("already staged\n"), 0o600); err != nil {
+		t.Fatalf("write staged file: %v", err)
+	}
+	runCmd(t, repoDir, "git", "add", "staged.txt")
+	if err := os.WriteFile(filepath.Join(workspace, "notes.txt"), []byte("before agent\n"), 0o600); err != nil {
+		t.Fatalf("write pre-existing workspace change: %v", err)
+	}
+
+	headBefore := gitOutput(t, repoDir, "rev-parse", "HEAD")
+	indexBefore := gitOutput(t, repoDir, "diff", "--cached", "--binary")
+	objectsBefore := gitOutput(t, repoDir, "count-objects", "-v")
+	judgePrompt, ag := newWorkspaceDiffJudgeAgent(t)
+
+	e := newTestEvaluator(EvalOptions{Agent: ag, WorkspaceDir: workspace})
+	caseCfg := &config.CaseConfig{
+		ID:    "case-external-git-diff",
+		Title: "Agent judge preserves external git state",
+		Input: config.Input{Prompt: "inspect repo"},
+		Judge: config.JudgeConfig{
+			Type:     "agent_judge",
+			Criteria: []string{"diff included"},
+		},
+	}
+
+	result := e.executeCase(context.Background(), caseCfg, "with_skill", &mockRuntime{workspace: workspace}, nil)
+
+	if result.Status != judge.StatusPass {
+		t.Fatalf("expected PASS status, got %s", result.Status)
+	}
+	assertJudgePromptReferencesMaterial(t, *judgePrompt, "workspace_diff", "workspace.diff")
+	if headAfter := gitOutput(t, repoDir, "rev-parse", "HEAD"); headAfter != headBefore {
+		t.Fatalf("external workspace HEAD changed: before %q, after %q", headBefore, headAfter)
+	}
+	if indexAfter := gitOutput(t, repoDir, "diff", "--cached", "--binary"); indexAfter != indexBefore {
+		t.Fatalf("external workspace index changed:\n--- before ---\n%s\n--- after ---\n%s", indexBefore, indexAfter)
+	}
+	if objectsAfter := gitOutput(t, repoDir, "count-objects", "-v"); objectsAfter != objectsBefore {
+		t.Fatalf("external workspace object database changed:\n--- before ---\n%s\n--- after ---\n%s", objectsBefore, objectsAfter)
+	}
+}
+
 func TestExecuteCase_AgentJudgeWithClonedGitRepoReceivesWorkspaceDiff(t *testing.T) {
 	originDir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(originDir, "notes.txt"), []byte("before\n"), 0o600); err != nil {
@@ -3284,6 +3335,17 @@ func runCmdContext(ctx context.Context, t *testing.T, dir, name string, args ...
 	if err != nil {
 		t.Fatalf("%s %s failed: %v: %s", name, strings.Join(args, " "), err, output)
 	}
+}
+
+func gitOutput(t *testing.T, dir string, args ...string) string {
+	t.Helper()
+	cmd := exec.CommandContext(t.Context(), "git", args...)
+	cmd.Dir = dir
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git %s failed: %v: %s", strings.Join(args, " "), err, output)
+	}
+	return string(output)
 }
 
 func TestExecuteCase_InputPromptOnly(t *testing.T) {

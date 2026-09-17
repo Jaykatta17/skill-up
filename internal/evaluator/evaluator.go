@@ -125,8 +125,9 @@ type EvalResult struct {
 type CaseResult = EvalResult
 
 type workspaceDiffState struct {
-	enabled     bool
-	baselineRev string
+	enabled       bool
+	baselineRev   string
+	temporaryPath string
 }
 
 // Evaluator orchestrates the evaluation pipeline for test cases.
@@ -1316,7 +1317,13 @@ func judgeLabel(cfg config.JudgeConfig) string {
 }
 
 func (e *defaultEvaluator) prepareWorkspaceArtifacts(ctx context.Context, rt runtime.Runtime, caseCfg *config.CaseConfig) (func(), func(*agent.SessionResult)) {
-	state, err := prepareWorkspaceDiffState(ctx, rt, caseCfg.Context.Git)
+	var state workspaceDiffState
+	var err error
+	if e.workspaceDir != "" {
+		state, err = prepareExternalWorkspaceDiffState(ctx, rt)
+	} else {
+		state, err = prepareWorkspaceDiffState(ctx, rt, caseCfg.Context.Git)
+	}
 	if err != nil {
 		logging.WarnContextf(ctx, "Judge: failed to snapshot workspace before run for case %s: %v", caseCfg.ID, err)
 	}
@@ -1333,7 +1340,11 @@ func (e *defaultEvaluator) prepareWorkspaceArtifacts(ctx context.Context, rt run
 		ensureArtifacts(sessionResult).WorkspaceDiff = workspaceDiff
 	}
 
-	return func() {}, finalize
+	return func() {
+		if state.temporaryPath != "" {
+			_ = os.RemoveAll(state.temporaryPath)
+		}
+	}, finalize
 }
 
 func ensureArtifacts(sessionResult *agent.SessionResult) *agent.SessionArtifacts {
@@ -1440,6 +1451,56 @@ git rev-parse HEAD`
 	return workspaceDiffState{enabled: true, baselineRev: baselineRev}, nil
 }
 
+func prepareExternalWorkspaceDiffState(ctx context.Context, rt runtime.Runtime) (workspaceDiffState, error) {
+	const probeScript = `if git rev-parse --git-dir >/dev/null 2>&1; then
+  printf git
+else
+  printf no-git
+fi`
+	result, err := rt.Exec(ctx, probeScript, runtime.ExecOptions{Cwd: rt.Workspace()})
+	if err != nil {
+		return workspaceDiffState{}, fmt.Errorf("prepare external workspace diff state: %w", err)
+	}
+	if strings.TrimSpace(result.Stdout) != "git" {
+		logging.TraceContextf(ctx, "Judge: workspace diff disabled because external workspace %s is not a git repo", rt.Workspace())
+		return workspaceDiffState{}, nil
+	}
+
+	temporaryPath, err := os.MkdirTemp("", "skill-up-workspace-diff-*")
+	if err != nil {
+		return workspaceDiffState{}, fmt.Errorf("create external workspace diff state: %w", err)
+	}
+	indexPath := filepath.Join(temporaryPath, "index")
+	objectsPath := filepath.Join(temporaryPath, "objects")
+	if err := os.Mkdir(objectsPath, 0o700); err != nil {
+		_ = os.RemoveAll(temporaryPath)
+		return workspaceDiffState{}, fmt.Errorf("create external workspace diff object directory: %w", err)
+	}
+	script := `set -eu
+repo_objects=$(git rev-parse --path-format=absolute --git-path objects)
+export GIT_INDEX_FILE=` + shellQuote(indexPath) + `
+export GIT_OBJECT_DIRECTORY=` + shellQuote(objectsPath) + `
+export GIT_ALTERNATE_OBJECT_DIRECTORIES="$repo_objects"
+git read-tree --empty
+git add --all -- .
+git write-tree`
+	result, err = rt.Exec(ctx, script, runtime.ExecOptions{Cwd: rt.Workspace()})
+	if err != nil {
+		_ = os.RemoveAll(temporaryPath)
+		return workspaceDiffState{}, fmt.Errorf("prepare external workspace diff state: %w", err)
+	}
+	if result.ExitCode != 0 {
+		_ = os.RemoveAll(temporaryPath)
+		return workspaceDiffState{}, fmt.Errorf("prepare external workspace diff state exited with code %d: %s", result.ExitCode, result.Stderr)
+	}
+	baselineTree := strings.TrimSpace(result.Stdout)
+	if baselineTree == "" {
+		_ = os.RemoveAll(temporaryPath)
+		return workspaceDiffState{}, errors.New("prepare external workspace diff state did not produce a tree")
+	}
+	return workspaceDiffState{enabled: true, baselineRev: baselineTree, temporaryPath: temporaryPath}, nil
+}
+
 func collectWorkspaceDiff(ctx context.Context, rt runtime.Runtime, state workspaceDiffState, generatedFiles []string) (string, error) {
 	if !state.enabled {
 		return "", nil
@@ -1447,7 +1508,13 @@ func collectWorkspaceDiff(ctx context.Context, rt runtime.Runtime, state workspa
 
 	cmd := strings.Builder{}
 	cmd.WriteString("set -eu\n")
-	cmd.WriteString(`git add --all` + "\n")
+	if state.temporaryPath != "" {
+		cmd.WriteString(`repo_objects=$(git rev-parse --path-format=absolute --git-path objects)` + "\n")
+		cmd.WriteString(`export GIT_INDEX_FILE=` + shellQuote(filepath.Join(state.temporaryPath, "index")) + "\n")
+		cmd.WriteString(`export GIT_OBJECT_DIRECTORY=` + shellQuote(filepath.Join(state.temporaryPath, "objects")) + "\n")
+		cmd.WriteString(`export GIT_ALTERNATE_OBJECT_DIRECTORIES="$repo_objects"` + "\n")
+	}
+	cmd.WriteString(`git add --all -- .` + "\n")
 	cmd.WriteString(`git diff --cached --no-ext-diff ` + shellQuote(state.baselineRev) + ` -- .`)
 	for _, pathspec := range gitDiffExcludePathspecs(rt.Workspace(), generatedFiles) {
 		cmd.WriteString(" " + shellQuote(pathspec))

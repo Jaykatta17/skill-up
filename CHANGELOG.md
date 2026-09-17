@@ -16,7 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `skill-up run --workspace <dir>` can now evaluate a local `none` runtime in
   an existing, externally owned workspace when case parallelism is one. The
   workspace is always preserved; `--no-delete` also remains available to keep
-  workspaces and containers created by skill-up.
+  workspaces and containers created by skill-up. Agent-judge diff capture uses
+  isolated Git index and object storage, so skill-up does not commit or stage
+  the external repository while taking its before/after snapshot.
 
 ### Changed
 - Legacy no-op `engine.entry` and `engine.model.params` values are now dropped
