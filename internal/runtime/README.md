@@ -98,7 +98,12 @@ explicitly supplied existing host directory as the workspace:
 - `Create`: reuses `Config.WorkspaceDir` when set; otherwise creates
   `os.MkdirTemp("", "skill-up-*")`
 - `Close`: never deletes an externally owned `Config.WorkspaceDir`; temporary
-  directories can be retained via `Config.Delete=false`
+  workspaces follow `Config.Delete`
+- Reused workspaces are stateful across serialized cases, retries, and
+  iterations; setup steps, fixtures, skill installation, and agent changes all
+  persist. Report output and event logs must be outside the reused directory.
+  Callers that need isolated trials must reset or copy the directory between
+  tasks
 - `Exec`: runs bash commands directly on the host
 - `Workspace()`: returns the selected host workspace path
 - `Upload` / `Download`: reads/writes the local file system

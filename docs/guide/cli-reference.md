@@ -47,6 +47,13 @@ skill-up run [path] [flags]
 > blocking a filtered smoke run. Use [`skill-up validate`](#skill-up-validate)
 > to validate the **whole** suite (every case) regardless of filters.
 
+> **Existing workspace state.** `--workspace` deliberately reuses the same
+> directory for every selected case, retry, and iteration. Runs are serialized,
+> but configured setup/fixtures/skill installation and agent changes carry
+> forward. The report `--output-dir` and `--event-log` must be outside this
+> directory. Select one case and one iteration, with retries disabled, when each
+> result must start from exactly the same state.
+
 ### Examples
 
 ```bash

@@ -38,6 +38,11 @@ skill-up run [path] [flags]
 | `--no-delete`         | `false`                      | 评测后保留由 skill-up 创建的 workspace 或容器，便于调试。                                                                                                   |
 | `-v, --verbose`       | `0`                          | 增加日志详细程度。默认输出 `info`；`-v`/`--verbose`/`--verbose=true` 输出 `debug`；`-vv`/`--verbose=2` 输出 `trace`；`--verbose=false` 关闭附加详细日志        |
 
+> **已有 workspace 的状态语义。** `--workspace` 会让所有已选 case、retry 和
+> iteration 串行复用同一个目录；配置的 setup、fixture、skill 安装及 agent 修改都会
+> 传递到后续执行。报告 `--output-dir` 和 `--event-log` 必须位于该目录之外。若每个
+> 结果必须从完全一致的状态开始，请只选择一个 case、执行一轮 iteration，并关闭 retry。
+
 ### 示例
 
 ```bash

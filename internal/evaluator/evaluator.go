@@ -1452,7 +1452,8 @@ git rev-parse HEAD`
 }
 
 func prepareExternalWorkspaceDiffState(ctx context.Context, rt runtime.Runtime) (workspaceDiffState, error) {
-	const probeScript = `if git rev-parse --git-dir >/dev/null 2>&1; then
+	const probeScript = `unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_COMMON_DIR GIT_CONFIG_COUNT GIT_CONFIG_PARAMETERS
+if git rev-parse --git-dir >/dev/null 2>&1; then
   printf git
 else
   printf no-git
@@ -1470,19 +1471,31 @@ fi`
 	if err != nil {
 		return workspaceDiffState{}, fmt.Errorf("create external workspace diff state: %w", err)
 	}
-	indexPath := filepath.Join(temporaryPath, "index")
-	objectsPath := filepath.Join(temporaryPath, "objects")
-	if err := os.Mkdir(objectsPath, 0o700); err != nil {
+	configPath := filepath.Join(temporaryPath, "config")
+	if err := os.WriteFile(configPath, nil, 0o600); err != nil {
 		_ = os.RemoveAll(temporaryPath)
-		return workspaceDiffState{}, fmt.Errorf("create external workspace diff object directory: %w", err)
+		return workspaceDiffState{}, fmt.Errorf("create external workspace diff config: %w", err)
 	}
 	script := `set -eu
-repo_objects=$(git rev-parse --path-format=absolute --git-path objects)
-export GIT_INDEX_FILE=` + shellQuote(indexPath) + `
-export GIT_OBJECT_DIRECTORY=` + shellQuote(objectsPath) + `
-export GIT_ALTERNATE_OBJECT_DIRECTORIES="$repo_objects"
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_COMMON_DIR GIT_CONFIG_COUNT GIT_CONFIG_PARAMETERS
+all_pathspecs=` + shellQuote(filepath.Join(temporaryPath, "all-pathspecs")) + `
+pathspecs=` + shellQuote(filepath.Join(temporaryPath, "pathspecs")) + `
+git -c core.fsmonitor=false ls-files -z --cached --others --exclude-standard -- . > "$all_pathspecs"
+xargs -0 sh -c 'for path do
+  if [ -e "$path" ] || [ -L "$path" ]; then printf "%s\0" "$path"; fi
+done' sh < "$all_pathspecs" > "$pathspecs"
+git init --bare -q ` + shellQuote(filepath.Join(temporaryPath, "repo.git")) + `
+export GIT_DIR=` + shellQuote(filepath.Join(temporaryPath, "repo.git")) + `
+export GIT_WORK_TREE=` + shellQuote(rt.Workspace()) + `
+export GIT_INDEX_FILE=` + shellQuote(filepath.Join(temporaryPath, "index")) + `
+export GIT_CONFIG_NOSYSTEM=1
+export GIT_CONFIG_SYSTEM=` + shellQuote(configPath) + `
+export GIT_CONFIG_GLOBAL=` + shellQuote(configPath) + `
+export GIT_ATTR_NOSYSTEM=1
 git read-tree --empty
-git add --all -- .
+if [ -s "$pathspecs" ]; then
+  git --literal-pathspecs -c advice.addEmbeddedRepo=false add --pathspec-from-file="$pathspecs" --pathspec-file-nul
+fi
 git write-tree`
 	result, err = rt.Exec(ctx, script, runtime.ExecOptions{Cwd: rt.Workspace()})
 	if err != nil {
@@ -1509,12 +1522,29 @@ func collectWorkspaceDiff(ctx context.Context, rt runtime.Runtime, state workspa
 	cmd := strings.Builder{}
 	cmd.WriteString("set -eu\n")
 	if state.temporaryPath != "" {
-		cmd.WriteString(`repo_objects=$(git rev-parse --path-format=absolute --git-path objects)` + "\n")
+		cmd.WriteString("unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_COMMON_DIR GIT_CONFIG_COUNT GIT_CONFIG_PARAMETERS\n")
+		allPathspecs := filepath.Join(state.temporaryPath, "all-pathspecs")
+		pathspecs := filepath.Join(state.temporaryPath, "pathspecs")
+		cmd.WriteString(`all_pathspecs=` + shellQuote(allPathspecs) + "\n")
+		cmd.WriteString(`pathspecs=` + shellQuote(pathspecs) + "\n")
+		cmd.WriteString(`git -c core.fsmonitor=false ls-files -z --cached --others --exclude-standard -- . > "$all_pathspecs"` + "\n")
+		cmd.WriteString(`xargs -0 sh -c 'for path do` + "\n")
+		cmd.WriteString(`  if [ -e "$path" ] || [ -L "$path" ]; then printf "%s\0" "$path"; fi` + "\n")
+		cmd.WriteString(`done' sh < "$all_pathspecs" > "$pathspecs"` + "\n")
+		cmd.WriteString(`export GIT_DIR=` + shellQuote(filepath.Join(state.temporaryPath, "repo.git")) + "\n")
+		cmd.WriteString(`export GIT_WORK_TREE=` + shellQuote(rt.Workspace()) + "\n")
 		cmd.WriteString(`export GIT_INDEX_FILE=` + shellQuote(filepath.Join(state.temporaryPath, "index")) + "\n")
-		cmd.WriteString(`export GIT_OBJECT_DIRECTORY=` + shellQuote(filepath.Join(state.temporaryPath, "objects")) + "\n")
-		cmd.WriteString(`export GIT_ALTERNATE_OBJECT_DIRECTORIES="$repo_objects"` + "\n")
+		cmd.WriteString("export GIT_CONFIG_NOSYSTEM=1\n")
+		cmd.WriteString(`export GIT_CONFIG_SYSTEM=` + shellQuote(filepath.Join(state.temporaryPath, "config")) + "\n")
+		cmd.WriteString(`export GIT_CONFIG_GLOBAL=` + shellQuote(filepath.Join(state.temporaryPath, "config")) + "\n")
+		cmd.WriteString("export GIT_ATTR_NOSYSTEM=1\n")
+		cmd.WriteString("git read-tree --empty\n")
+		cmd.WriteString(`if [ -s "$pathspecs" ]; then` + "\n")
+		cmd.WriteString(`  git --literal-pathspecs -c advice.addEmbeddedRepo=false add --pathspec-from-file="$pathspecs" --pathspec-file-nul` + "\n")
+		cmd.WriteString("fi\n")
+	} else {
+		cmd.WriteString(`git add --all -- .` + "\n")
 	}
-	cmd.WriteString(`git add --all -- .` + "\n")
 	cmd.WriteString(`git diff --cached --no-ext-diff ` + shellQuote(state.baselineRev) + ` -- .`)
 	for _, pathspec := range gitDiffExcludePathspecs(rt.Workspace(), generatedFiles) {
 		cmd.WriteString(" " + shellQuote(pathspec))
