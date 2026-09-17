@@ -30,9 +30,14 @@ export function resolveWorkspaceFile(workspace, input, label) {
 
 export function prepareOutputDirectory(workspace, runId) {
   const root = realpathSync(workspace)
-  const requested = resolve(root, OUTPUT_ROOT, runId)
-  mkdirSync(requested, { recursive: true })
-  return relativeInside(root, realpathSync(requested), 'output directory')
+  const outputRoot = resolve(root, OUTPUT_ROOT)
+  mkdirSync(outputRoot, { recursive: true })
+  const confinedOutputRoot = realpathSync(outputRoot)
+  relativeInside(root, confinedOutputRoot, 'output root')
+
+  const runDirectory = resolve(confinedOutputRoot, runId)
+  mkdirSync(runDirectory)
+  return relativeInside(root, realpathSync(runDirectory), 'output directory')
 }
 
 export function buildRunArgs(evalPath, outputDir, input = {}) {

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtempSync, mkdirSync, symlinkSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, readdirSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -84,8 +84,9 @@ test('prepareOutputDirectory confines generated reports despite symlinks', () =>
   symlinkSync(outside, join(escapedWorkspace, '.skill-up-workspace'))
   assert.throws(
     () => prepareOutputDirectory(escapedWorkspace, '00000000-0000-0000-0000-000000000002'),
-    /output directory must stay inside the DSH workspace/,
+    /output root must stay inside the DSH workspace/,
   )
+  assert.deepEqual(readdirSync(outside), [])
 })
 
 test('forwardedEnvironment only forwards explicitly configured names', () => {
