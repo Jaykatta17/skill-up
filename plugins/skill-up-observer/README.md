@@ -2,6 +2,8 @@
 
 This plugin captures explicitly attributed Skill interactions through Codex hooks and stores normalized observations locally. A bundled review Skill guides the user through approval before `skill-up` creates a candidate regression case.
 
+The root `plugin.json` and `mcp.json` follow the current portable Agent Plugin format. `.codex-plugin/plugin.json` and `.mcp.json` are retained as Codex compatibility fallbacks.
+
 ## Requirements
 
 - A current Codex CLI or Codex desktop release with plugin and lifecycle-hook support. The IDE extension does not support plugins.

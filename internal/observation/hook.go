@@ -62,6 +62,11 @@ func (h *HookHandler) Handle(in HookInput) (*Observation, error) {
 	if in.SessionID == "" {
 		return nil, errors.New("hook payload session_id is required")
 	}
+	unlock, err := acquireFileLock(h.draftPath(in.SessionID, in.TurnID)+".lock", 2*time.Second)
+	if err != nil {
+		return nil, err
+	}
+	defer unlock()
 	switch in.HookEventName {
 	case "UserPromptSubmit":
 		return nil, h.onPrompt(in)
@@ -88,7 +93,7 @@ func (h *HookHandler) onPrompt(in HookInput) error {
 	}
 	for _, match := range explicitSkillPattern.FindAllStringSubmatch(prompt, -1) {
 		name := strings.ToLower(match[1])
-		if name == observerSkillName {
+		if name == observerSkillName || !skillNamePattern.MatchString(name) {
 			continue
 		}
 		d.Skill.Name = name
@@ -113,46 +118,74 @@ func (h *HookHandler) onTool(in HookInput) error {
 	tool := shortToolName(in.ToolName)
 	switch tool {
 	case "mark_skill_invocation":
-		var args struct {
-			SkillName    string `json:"skill_name"`
-			SkillVersion string `json:"skill_version"`
-		}
-		if err := json.Unmarshal(in.ToolInput, &args); err != nil {
-			return fmt.Errorf("parse mark_skill_invocation input: %w", err)
-		}
-		if strings.TrimSpace(args.SkillName) == "" {
-			return errors.New("mark_skill_invocation requires skill_name")
-		}
-		d.Skill = Skill{Name: strings.TrimSpace(args.SkillName), Version: strings.TrimSpace(args.SkillVersion)}
-		d.Attribution = Attribution{
-			Method:     AttributionInstrumented,
-			Confidence: 1,
-			Evidence:   []string{"Skill invocation marked through the observer MCP tool"},
-		}
+		err = applySkillMarker(d, in.ToolInput)
 	case "attach_skill_evidence":
-		var args struct {
-			Kind      string `json:"kind"`
-			Reference string `json:"reference"`
-			Summary   string `json:"summary"`
-		}
-		if err := json.Unmarshal(in.ToolInput, &args); err != nil {
-			return fmt.Errorf("parse attach_skill_evidence input: %w", err)
-		}
-		ref, r1 := Redact(args.Reference, nil)
-		summary, r2 := Redact(args.Summary, nil)
-		d.Redactions = mergeStrings(d.Redactions, append(r1, r2...))
-		d.Evidence = append(d.Evidence, Evidence{Kind: args.Kind, Ref: ref, Summary: summary})
+		err = applyEvidenceMarker(d, in.ToolInput)
 	case "record_skill_feedback":
-		var args Feedback
-		if err := json.Unmarshal(in.ToolInput, &args); err != nil {
-			return fmt.Errorf("parse record_skill_feedback input: %w", err)
-		}
-		args.Comment, d.Redactions = redactAndMerge(args.Comment, d.Redactions)
-		d.Feedback = &args
+		err = applyFeedbackMarker(d, in.ToolInput)
 	default:
 		return fmt.Errorf("unsupported observer tool %q", in.ToolName)
 	}
+	if err != nil {
+		return err
+	}
 	return h.saveDraft(d)
+}
+
+func applySkillMarker(d *draft, input json.RawMessage) error {
+	var args struct {
+		SkillName    string `json:"skill_name"`
+		SkillVersion string `json:"skill_version"`
+	}
+	if err := json.Unmarshal(input, &args); err != nil {
+		return fmt.Errorf("parse mark_skill_invocation input: %w", err)
+	}
+	name := strings.ToLower(strings.TrimSpace(args.SkillName))
+	if !skillNamePattern.MatchString(name) {
+		return errors.New("mark_skill_invocation skill_name must use 1-64 lowercase letters, digits, underscores, or hyphens")
+	}
+	version, redactions := Redact(strings.TrimSpace(args.SkillVersion), nil)
+	d.Redactions = mergeStrings(d.Redactions, redactions)
+	d.Skill = Skill{Name: name, Version: version}
+	d.Attribution = Attribution{
+		Method:     AttributionInstrumented,
+		Confidence: 1,
+		Evidence:   []string{"Skill invocation marked through the observer MCP tool"},
+	}
+	return nil
+}
+
+func applyEvidenceMarker(d *draft, input json.RawMessage) error {
+	var args struct {
+		Kind      string `json:"kind"`
+		Reference string `json:"reference"`
+		Summary   string `json:"summary"`
+	}
+	if err := json.Unmarshal(input, &args); err != nil {
+		return fmt.Errorf("parse attach_skill_evidence input: %w", err)
+	}
+	kind, r0 := Redact(strings.TrimSpace(args.Kind), nil)
+	if kind == "" {
+		return errors.New("attach_skill_evidence requires kind")
+	}
+	ref, r1 := Redact(args.Reference, nil)
+	summary, r2 := Redact(args.Summary, nil)
+	d.Redactions = mergeStrings(d.Redactions, append(r0, append(r1, r2...)...))
+	d.Evidence = append(d.Evidence, Evidence{Kind: kind, Ref: ref, Summary: summary})
+	return nil
+}
+
+func applyFeedbackMarker(d *draft, input json.RawMessage) error {
+	var args Feedback
+	if err := json.Unmarshal(input, &args); err != nil {
+		return fmt.Errorf("parse record_skill_feedback input: %w", err)
+	}
+	if !validFeedbackSentiment(args.Sentiment) {
+		return errors.New("record_skill_feedback sentiment must be positive, negative, mixed, or neutral")
+	}
+	args.Comment, d.Redactions = redactAndMerge(args.Comment, d.Redactions)
+	d.Feedback = &args
+	return nil
 }
 
 func (h *HookHandler) finalize(in HookInput, status string) (*Observation, error) {

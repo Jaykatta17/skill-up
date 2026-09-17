@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -160,6 +161,69 @@ func TestHookHandlerInstrumentedAndUnattributed(t *testing.T) {
 	}
 }
 
+func TestHookHandlerSerializesConcurrentMarkers(t *testing.T) {
+	t.Parallel()
+	store := NewStore(t.TempDir())
+	h := NewHookHandler(store)
+	if _, err := h.Handle(HookInput{
+		SessionID: "concurrent-session", TurnID: "turn-1", HookEventName: "UserPromptSubmit", Prompt: "Help me",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.Handle(HookInput{
+		SessionID: "concurrent-session", TurnID: "turn-1", HookEventName: "PostToolUse",
+		ToolName: "mcp__skill_up_observer__mark_skill_invocation", ToolInput: json.RawMessage(`{"skill_name":"demo-skill"}`),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	const markerCount = 20
+	errCh := make(chan error, markerCount)
+	var wg sync.WaitGroup
+	for range markerCount {
+		wg.Go(func() {
+			_, err := h.Handle(HookInput{
+				SessionID: "concurrent-session", TurnID: "turn-1", HookEventName: "PostToolUse",
+				ToolName: "mcp__skill_up_observer__attach_skill_evidence", ToolInput: json.RawMessage(`{"kind":"test","summary":"evidence"}`),
+			})
+			errCh <- err
+		})
+	}
+	wg.Wait()
+	close(errCh)
+	for err := range errCh {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	o, err := h.Handle(HookInput{SessionID: "concurrent-session", TurnID: "turn-1", HookEventName: "Stop"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := len(o.Evidence); got != markerCount {
+		t.Fatalf("evidence count = %d, want %d", got, markerCount)
+	}
+}
+
+func TestHookHandlerRejectsInvalidMarkerMetadata(t *testing.T) {
+	t.Parallel()
+	h := NewHookHandler(NewStore(t.TempDir()))
+	_, err := h.Handle(HookInput{
+		SessionID: "invalid-marker", HookEventName: "PostToolUse",
+		ToolName: "mark_skill_invocation", ToolInput: json.RawMessage(`{"skill_name":"../unsafe"}`),
+	})
+	if err == nil || !strings.Contains(err.Error(), "skill_name") {
+		t.Fatalf("invalid skill marker error = %v", err)
+	}
+	_, err = h.Handle(HookInput{
+		SessionID: "invalid-feedback", HookEventName: "PostToolUse",
+		ToolName: "record_skill_feedback", ToolInput: json.RawMessage(`{"sentiment":"excellent"}`),
+	})
+	if err == nil || !strings.Contains(err.Error(), "sentiment") {
+		t.Fatalf("invalid feedback marker error = %v", err)
+	}
+}
+
 func TestWriteCandidateCaseRequiresApprovalAndNeverOverwrites(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -207,6 +271,63 @@ cases:
 	}
 }
 
+func TestWriteCandidateCaseSerializesConcurrentUpdates(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "evals", "cases"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "SKILL.md"), []byte("---\nname: demo-skill\n---\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "evals", "eval.yaml"), []byte(`schema_version: v1alpha1
+environment:
+  type: none
+engine:
+  name: codex
+cases:
+  files: []
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	observations := []*Observation{testObservation(), testObservation()}
+	observations[0].Input.Text = "first prompt"
+	observations[1].Input.Text = "second prompt"
+	for _, item := range observations {
+		item.Review.Status = ReviewApproved
+		item.AssignID()
+	}
+	errCh := make(chan error, len(observations))
+	var wg sync.WaitGroup
+	for _, item := range observations {
+		wg.Go(func() {
+			_, err := WriteCandidateCase(item, root)
+			errCh <- err
+		})
+	}
+	wg.Wait()
+	close(errCh)
+	for err := range errCh {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	evalData, err := os.ReadFile(filepath.Join(root, "evals", "eval.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, item := range observations {
+		_, caseID, err := CandidateCase(item)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(evalData), caseID+".yaml") {
+			t.Fatalf("eval.yaml does not reference %s:\n%s", caseID, evalData)
+		}
+	}
+}
+
 func TestServeMCPListsAndCallsMarkerTools(t *testing.T) {
 	t.Parallel()
 	input := strings.NewReader("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}\n" +
@@ -219,5 +340,26 @@ func TestServeMCPListsAndCallsMarkerTools(t *testing.T) {
 		if !strings.Contains(output.String(), want) {
 			t.Fatalf("MCP output missing %q: %s", want, output.String())
 		}
+	}
+}
+
+func TestValidateToolArgumentsRejectsInvalidMetadata(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		tool string
+		args map[string]any
+	}{
+		{name: "unsafe skill name", tool: "mark_skill_invocation", args: map[string]any{"skill_name": "../unsafe"}},
+		{name: "empty evidence kind", tool: "attach_skill_evidence", args: map[string]any{"kind": ""}},
+		{name: "invalid sentiment", tool: "record_skill_feedback", args: map[string]any{"sentiment": "excellent"}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			if err := validateToolArguments(test.tool, test.args); err == nil {
+				t.Fatalf("validateToolArguments(%q, %#v) succeeded", test.tool, test.args)
+			}
+		})
 	}
 }

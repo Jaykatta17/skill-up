@@ -12,7 +12,10 @@ import (
 	"time"
 )
 
-var observationIDPattern = regexp.MustCompile(`^obs_[a-f0-9]{24}$`)
+var (
+	observationIDPattern = regexp.MustCompile(`^obs_[a-f0-9]{24}$`)
+	skillNamePattern     = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,63}$`)
+)
 
 const (
 	// SchemaVersion is the current observation document schema.
@@ -141,8 +144,8 @@ func (o *Observation) identityErrors() []string {
 	if o.Host.Name == "" {
 		errs = append(errs, "host.name is required")
 	}
-	if o.Skill.Name == "" {
-		errs = append(errs, "skill.name is required")
+	if !skillNamePattern.MatchString(o.Skill.Name) {
+		errs = append(errs, "skill.name must use 1-64 lowercase letters, digits, underscores, or hyphens")
 	}
 	if o.Correlation.SessionID == "" {
 		errs = append(errs, "correlation.session_id is required")
@@ -173,7 +176,20 @@ func (o *Observation) semanticErrors() []string {
 	if !validReviewStatus(o.Review.Status) {
 		errs = append(errs, "review.status must be candidate, approved, or rejected")
 	}
+	for _, evidence := range o.Evidence {
+		if strings.TrimSpace(evidence.Kind) == "" {
+			errs = append(errs, "evidence.kind is required")
+			break
+		}
+	}
+	if o.Feedback != nil && !validFeedbackSentiment(o.Feedback.Sentiment) {
+		errs = append(errs, "feedback.sentiment must be positive, negative, mixed, neutral, or empty")
+	}
 	return errs
+}
+
+func validFeedbackSentiment(sentiment string) bool {
+	return sentiment == "" || sentiment == "positive" || sentiment == "negative" || sentiment == "mixed" || sentiment == "neutral"
 }
 
 func validateAttributionMethod(method string) error {

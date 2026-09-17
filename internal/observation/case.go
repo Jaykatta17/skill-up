@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 
@@ -79,6 +80,21 @@ func WriteCandidateCase(o *Observation, skillRoot string) (string, error) {
 	if o.Review.Status != ReviewApproved {
 		return "", errors.New("observation must be approved before writing a case")
 	}
+	absRoot, err := filepath.Abs(skillRoot)
+	if err != nil {
+		return "", err
+	}
+	if _, err := os.Stat(filepath.Join(absRoot, "SKILL.md")); err != nil {
+		return "", fmt.Errorf("skill root must contain SKILL.md: %w", err)
+	}
+	if _, err := os.Stat(filepath.Join(absRoot, "evals", "eval.yaml")); err != nil {
+		return "", fmt.Errorf("read eval.yaml: %w", err)
+	}
+	unlock, err := acquireFileLock(filepath.Join(absRoot, "evals", ".skill-up-observe.lock"), 30*time.Second)
+	if err != nil {
+		return "", err
+	}
+	defer unlock()
 	root, evalPath, evalOriginal, evalMode, err := prepareCaseWrite(skillRoot)
 	if err != nil {
 		return "", err

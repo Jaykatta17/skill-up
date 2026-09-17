@@ -3,8 +3,10 @@ package observation
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"strings"
 )
 
 type rpcRequest struct {
@@ -143,20 +145,31 @@ func handleRPC(req rpcRequest) rpcResponse {
 }
 
 func validateToolArguments(name string, arguments map[string]any) error {
-	required := ""
 	switch name {
 	case "mark_skill_invocation":
-		required = "skill_name"
+		value, ok := arguments["skill_name"].(string)
+		if !ok || !skillNamePattern.MatchString(strings.ToLower(strings.TrimSpace(value))) {
+			return errors.New("mark_skill_invocation requires a valid skill_name")
+		}
+		return nil
 	case "attach_skill_evidence":
-		required = "kind"
+		value, ok := arguments["kind"].(string)
+		if !ok || strings.TrimSpace(value) == "" {
+			return errors.New("attach_skill_evidence requires a non-empty kind")
+		}
+		return nil
 	case "record_skill_feedback":
+		value, ok := arguments["sentiment"]
+		if !ok {
+			return nil
+		}
+		sentiment, ok := value.(string)
+		if !ok || !validFeedbackSentiment(sentiment) {
+			return errors.New("record_skill_feedback requires a valid sentiment")
+		}
 		return nil
 	}
-	value, ok := arguments[required].(string)
-	if !ok || value == "" {
-		return fmt.Errorf("%s requires a non-empty %s", name, required)
-	}
-	return nil
+	return errors.New("unknown observer tool")
 }
 
 func knownTool(name string) bool {
