@@ -18,6 +18,7 @@ engine:
     name: qwen3.8-max
   custom:
     transport: local
+    conversation_mode: stateful
     response_format: session_result
     timeout_seconds: 300
     env:

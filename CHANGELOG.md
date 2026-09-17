@@ -14,8 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   next turn, enabling post-conditions, captures, early stopping, and per-turn
   judge assertions without changing existing batch configurations.
 - Add an experimental DeepSeek Harness Custom Engine example with isolated
-  per-run DSH state, DashScope/Qwen routing, Skill discovery, structured
-  transcripts, token accounting, and credential-redacted session artifacts.
+  per-run DSH state, DashScope/Qwen routing, Skill discovery, stateful ACP
+  session resume, structured transcripts, token accounting, and
+  credential-redacted session artifacts.
 
 ### Changed
 - Legacy no-op `engine.entry` and `engine.model.params` values are now dropped
