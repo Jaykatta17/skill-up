@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   user message per invocation and carry the returned `session_id` into the
   next turn, enabling post-conditions, captures, early stopping, and per-turn
   judge assertions without changing existing batch configurations.
+- `skill-up run --workspace <dir>` can now evaluate a local `none` runtime in
+  an existing, externally owned workspace when case parallelism is one. The
+  workspace is always preserved; `--no-delete` also remains available to keep
+  workspaces and containers created by skill-up.
 
 ### Changed
 - Legacy no-op `engine.entry` and `engine.model.params` values are now dropped

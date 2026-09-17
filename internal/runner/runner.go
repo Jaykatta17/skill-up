@@ -47,6 +47,7 @@ type IterationObserver interface {
 type EvaluateOptions struct {
 	DeleteWorkspace   bool
 	OutputDir         string
+	WorkspaceDir      string
 	Iteration         int
 	Formats           []string
 	Observer          evaluator.ProgressObserver
@@ -217,6 +218,7 @@ func (r *Runner) EvaluatePlan(ctx context.Context, plan ExecutionPlan, ag agent.
 			Agent:           ag,
 			RunnerConfig:    r.runnerConfig,
 			OutputDir:       r.workspace.IterationDir(),
+			WorkspaceDir:    opts.WorkspaceDir,
 			Concurrency:     r.evalCfg.Cases.Parallelism,
 			DeleteWorkspace: opts.DeleteWorkspace,
 			WithBaseline:    r.evalCfg.Benchmark.Enabled,

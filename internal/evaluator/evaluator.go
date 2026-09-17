@@ -60,6 +60,7 @@ type EvalOptions struct {
 	SkillName       string
 	SkillDir        string
 	OutputDir       string
+	WorkspaceDir    string
 	Concurrency     int
 	DeleteWorkspace bool
 	Loader          *config.Loader
@@ -139,6 +140,7 @@ type defaultEvaluator struct {
 	skillName    string
 	skillDir     string
 	outputDir    string
+	workspaceDir string
 	concurrency  int
 	withBaseline bool
 
@@ -173,6 +175,7 @@ func NewEvaluator(opts EvalOptions) Evaluator {
 		skillName:       opts.SkillName,
 		skillDir:        opts.SkillDir,
 		outputDir:       opts.OutputDir,
+		workspaceDir:    opts.WorkspaceDir,
 		concurrency:     concurrency,
 		withBaseline:    opts.WithBaseline,
 		evalCfg:         evalCfg,
@@ -1141,6 +1144,7 @@ func mergeFileContains(a, b []config.FileContainsCheck) []config.FileContainsChe
 func (e *defaultEvaluator) prepareRuntimeForCase(ctx context.Context, caseCfg *config.CaseConfig, configName string, ag agent.Agent) (runtime.Runtime, agent.RuntimeObservation, error) {
 	rtCfg := e.evalCfg.Environment.ToRuntimeConfig()
 	rtCfg.Delete = e.deleteWorkspace
+	rtCfg.WorkspaceDir = e.workspaceDir
 	mcpCfg, mcpEnv, err := e.provisionMCPConfigForCase(caseCfg)
 	if err != nil {
 		return nil, agent.RuntimeObservation{}, err
