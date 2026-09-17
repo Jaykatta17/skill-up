@@ -128,6 +128,7 @@ internal/           Private implementation — never import from outside the mod
   skill/            Install Skill files into Engine's conventional path (excluding evals/)
   evaluator/        Evaluator: iterates cases, calls agent.Run, returns CaseResult
   evalevent/        Internal evaluation event model, publisher, lifecycle, and JSONL sink
+  observation/      Local Skill observations, privacy controls, review, and case conversion
   judge/            Judges: rule_based, script, agent_judge
   report/           Report generators: JSON / JUnit / HTML / Anthropic grading & benchmark
   runner/           End-to-end orchestration for `skill-up run`
@@ -135,6 +136,7 @@ internal/           Private implementation — never import from outside the mod
 pkg/                Publicly importable APIs (semver-stable; change with care)
   skillup/          Embeddable evaluation API
   transcript/       Transcript parsing helpers
+plugins/            Agent host plugins; each plugin owns its manifest, hooks, MCP, and Skills
 skills/skill-upper/ Distributable Agent Skill that guides AI agents through the
                     skill-up eval workflow (scaffolding, running, interpreting).
                     Contains SKILL.md, assets/
@@ -145,7 +147,7 @@ e2e/                End-to-end tests (build-tag gated) + testdata/
 examples/           Example fixtures and debug inputs
 docs/               Design docs, user manuals, and the VitePress site
                     (built & deployed to GitHub Pages by .github/workflows/docs.yml)
-schemas/evalevent/  Versioned machine-readable evaluation event protocol schemas
+schemas/            Versioned machine-readable evaluation event and observation schemas
 ```
 
 ### Boundary rules

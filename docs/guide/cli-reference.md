@@ -182,6 +182,34 @@ regression-001        Fix: no longer misreports       functional_test  Review th
 
 ---
 
+## skill-up observe
+
+Review privacy-aware Skill observations captured locally by a supported host
+plugin. The current adapter is the `plugins/skill-up-observer` bundle for
+hook-capable Codex releases; the pinned Codex 0.80.0 evaluation adapter is not
+an observation host.
+
+```bash
+skill-up observe list [--json]
+skill-up observe show <observation-id>
+skill-up observe case <observation-id>
+skill-up observe approve <observation-id>
+skill-up observe reject <observation-id>
+skill-up observe case <observation-id> --write --skill-root /path/to/skill
+```
+
+All commands accept `--data-dir`; otherwise observations are read from
+`SKILL_UP_OBSERVATION_DIR` or `~/.skill-up/observations`. Case preview is
+read-only. Writing requires prior approval, creates a new file without
+overwriting, updates `cases.files`, and keeps the changes only when the full
+suite validates successfully.
+
+Generated cases inherit the suite-level judge and intentionally contain no
+guessed expectations. Review and add concrete expectations before treating a
+generated case as a release gate.
+
+---
+
 ## skill-up report
 
 Regenerate reports from an existing result file without re-running the evaluation.

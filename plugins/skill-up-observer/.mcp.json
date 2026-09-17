@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "skill_up_observer": {
+      "command": "skill-up",
+      "args": ["observe", "mcp"]
+    }
+  }
+}

@@ -159,6 +159,30 @@ regression-001        Fix: no longer misreports       functional_test  Review th
 
 ---
 
+## skill-up observe
+
+审核由受支持的宿主插件在本地采集、经过隐私处理的 Skill observation。当前宿主适配器
+是面向支持 lifecycle hooks 的最新版 Codex 的 `plugins/skill-up-observer`；评测使用的
+Codex 0.80.0 不承担 observation 采集。
+
+```bash
+skill-up observe list [--json]
+skill-up observe show <observation-id>
+skill-up observe case <observation-id>
+skill-up observe approve <observation-id>
+skill-up observe reject <observation-id>
+skill-up observe case <observation-id> --write --skill-root /path/to/skill
+```
+
+所有子命令都支持 `--data-dir`；默认依次读取 `SKILL_UP_OBSERVATION_DIR` 或
+`~/.skill-up/observations`。case 预览是只读操作。写入前必须先审批，写入不会覆盖已有
+文件，会更新 `cases.files`，并且只有完整评测集校验通过才会保留修改。
+
+生成的用例继承评测集的全局 Judge，不会猜测期望结果。在把它作为发布门禁前，应先
+人工补充明确的期望。
+
+---
+
 ## skill-up report
 
 从已有的评测结果文件重新生成报告，无需重新运行评测。
