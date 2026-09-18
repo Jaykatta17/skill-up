@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/alibaba/skill-up/schemas/observation/v1alpha1/observation.schema.json",
-  "title": "Skill Observation v1alpha1",
+  "$id": "https://github.com/alibaba/skill-up/plugins/skill-up-observer/schemas/observation.schema.json",
+  "title": "Skill Up Observer document v1alpha1",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -25,7 +25,7 @@
       "additionalProperties": false,
       "required": ["name"],
       "properties": {
-        "name": { "type": "string", "minLength": 1 },
+        "name": { "const": "codex" },
         "version": { "type": "string" },
         "adapter_version": { "type": "string" }
       }
@@ -49,7 +49,12 @@
         "evidence": { "type": "array", "items": { "type": "string" } }
       }
     },
-    "input": { "$ref": "#/$defs/content" },
+    "input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["text"],
+      "properties": { "text": { "type": "string", "minLength": 1 } }
+    },
     "outcome": {
       "type": "object",
       "additionalProperties": false,
@@ -116,20 +121,6 @@
         "status": { "enum": ["candidate", "approved", "rejected"] },
         "reviewed_at": { "type": "string", "format": "date-time" }
       }
-    }
-  },
-  "$defs": {
-    "content": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "text": { "type": "string" },
-        "ref": { "type": "string" }
-      },
-      "anyOf": [
-        { "required": ["text"], "properties": { "text": { "minLength": 1 } } },
-        { "required": ["ref"], "properties": { "ref": { "minLength": 1 } } }
-      ]
     }
   }
 }

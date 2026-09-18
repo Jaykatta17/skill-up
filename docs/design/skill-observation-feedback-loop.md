@@ -2,7 +2,7 @@
 
 Status: initial implementation (`v1alpha1`)
 
-This design introduces a host-neutral observation contract and a first adapter for current Codex releases. It is the first stage of issue #255: capture attributable real-world Skill interactions, review them locally, and turn an approved observation into a candidate regression case.
+This design introduces a self-contained observer plugin for current Codex releases. It is the first stage of issue #255: capture attributable real-world Skill interactions, review them locally, and turn an approved observation into a candidate regression case.
 
 ## Compatibility boundary
 
@@ -14,15 +14,15 @@ The existing skill-up Codex engine remains pinned to 0.80.0 for its custom Chat-
 
 ```text
 Codex hook payloads
-  -> Codex adapter (hook normalization and attribution)
-  -> observation v1alpha1
-  -> local review store
-  -> explicit approve/reject
+  -> plugin Python runtime (normalization, attribution, redaction)
+  -> plugin-local observation v1alpha1
+  -> ${PLUGIN_DATA} review store
+  -> plugin MCP approve/reject tools
   -> candidate case preview/write
-  -> existing skill-up validate/run/report workflow
+  -> optional skill-up validate, then existing run/report workflow
 ```
 
-The portable boundary is the normalized observation JSON document in `schemas/observation/v1alpha1`. Future DeepSeek Harness or other host integrations should emit this contract instead of sharing Codex hook payloads or transcript formats.
+The observation schema lives in `plugins/skill-up-observer/schemas`. It describes the plugin's persisted document without adding a public skill-up CLI or Go package. Future host integrations may reuse the document shape, but do not need to share Codex hook payloads or the plugin runtime.
 
 ## Attribution
 
@@ -38,21 +38,21 @@ Only explicit and instrumented attribution can produce a stored observation. Gen
 
 Installing/enabling the plugin and separately trusting its hook definition is the opt-in boundary. Hooks redact common provider keys, bearer tokens, JWTs, AWS access keys, and secret assignments before writing a draft or final observation. Raw hook payloads and transcript files are not stored.
 
-Storage defaults to `~/.skill-up/observations` and can be overridden with `SKILL_UP_OBSERVATION_DIR`. Directories use `0700`; observation and draft files use `0600`. Data remains local and no upload path exists in this implementation.
+Storage uses Codex's plugin-specific `${PLUGIN_DATA}` directory; `SKILL_UP_OBSERVER_DATA` is a development/test override. Directories use `0700`; observation and draft files use `0600`. Data remains local and no upload path exists in this implementation.
 
 `UserPromptSubmit` creates a short-lived, redacted draft so later marker tools can attach attribution. `Stop` or `Interrupt` deletes the draft. If no explicit or instrumented attribution exists, no final observation is produced.
 
 ## Review and mutation boundary
 
-New observations start as `candidate`. Listing, showing, and case preview are read-only. A user must approve a specific observation before `--write` is accepted. Rejection is also explicit and retained as review metadata.
+New observations start as `candidate`. Listing, showing, and case preview are read-only MCP tools. A user must approve a specific observation before the write tool accepts it. Rejection is also explicit and retained as review metadata.
 
 Case conversion:
 
 1. creates a valid `functional_test` case that inherits the suite-level judge;
 2. records the observation ID and any feedback in the description;
 3. uses exclusive file creation, so an existing file is never overwritten;
-4. appends the case path to `evals/eval.yaml` while preserving YAML comments;
-5. validates the entire eval suite and rolls back both changes on failure.
+4. appends the case path to the block-form `cases.files` list without rewriting unrelated YAML;
+5. when `skill-up` is installed, validates the entire eval suite and rolls back both changes on failure.
 
 The generated case is deliberately a candidate: a maintainer must add concrete expectations before using it as a release gate. The observer does not edit the Skill, run evaluations, compare reports, or publish data without a separate request.
 

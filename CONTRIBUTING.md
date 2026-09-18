@@ -113,11 +113,6 @@ skill-up/
 - **Meaning**: Defines the internal typed evaluation event envelope and payloads, invocation lifecycle state, publisher, and JSONL sink. It is not a public stable API.
 - **Relation to design**: Implements the producer-side protocol defined by SUP-0005 without coupling it to CLI, runner, evaluator, report, or UI packages.
 
-### `internal/observation/`
-
-- **Meaning**: Normalizes attributable Skill interactions, redacts sensitive values before local persistence, manages human review state, and converts approved observations into candidate eval cases.
-- **Relation to design**: Implements the host-neutral contract and review boundary documented in `docs/design/skill-observation-feedback-loop.md`.
-
 ### `internal/judge/`
 
 - **Meaning**: Performs evaluation on top of Engine output: `rule_based`, `agent_judge`, `script`, producing results aligned with `grading.json`.
@@ -156,7 +151,7 @@ skill-up/
 
 ### `plugins/`
 
-- **Meaning**: Contains installable Agent host plugin bundles. A plugin may bundle Skills, lifecycle hooks, and MCP server configuration, but host-specific payloads must be normalized before entering shared packages.
+- **Meaning**: Contains installable Agent host plugin bundles. A plugin may bundle Skills, lifecycle hooks, scripts, schemas, and MCP server configuration.
 - **Maintenance advice**: Validate each manifest and bundled Skill with the repository's documented plugin and Skill validators. Keep hook trust, compatibility, and local data behavior explicit in the plugin README.
 
 ### `docs/`

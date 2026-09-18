@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "skill-up observe ingest-hook",
+            "command": "python3 \"${PLUGIN_ROOT}/scripts/observer.py\" ingest-hook",
             "timeout": 5,
             "statusMessage": "Preparing local Skill observation"
           }
@@ -19,7 +19,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "skill-up observe ingest-hook",
+            "command": "python3 \"${PLUGIN_ROOT}/scripts/observer.py\" ingest-hook",
             "timeout": 5,
             "statusMessage": "Updating local Skill observation"
           }
@@ -31,7 +31,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "skill-up observe ingest-hook",
+            "command": "python3 \"${PLUGIN_ROOT}/scripts/observer.py\" ingest-hook",
             "timeout": 5,
             "statusMessage": "Saving local Skill observation"
           }
@@ -43,7 +43,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "skill-up observe ingest-hook",
+            "command": "python3 \"${PLUGIN_ROOT}/scripts/observer.py\" ingest-hook",
             "timeout": 3
           }
         ]

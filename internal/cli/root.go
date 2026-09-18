@@ -177,7 +177,6 @@ func init() {
 	rootCmd.AddCommand(reportCmd)
 	rootCmd.AddCommand(debugCmd)
 	rootCmd.AddCommand(importCmd)
-	rootCmd.AddCommand(observeCmd)
 }
 
 func usageOnError(args cobra.PositionalArgs) cobra.PositionalArgs {

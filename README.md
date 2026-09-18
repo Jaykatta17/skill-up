@@ -234,7 +234,6 @@ skill-up import ./evals/evals.json --output ./evals
 | `skill-up run [path]`                | Run evaluation cases and produce reports    |
 | `skill-up validate [path]`           | Validate `eval.yaml` and case files         |
 | `skill-up list-cases [path]`         | List all cases referenced by the config     |
-| `skill-up observe <subcommand>`      | Review local observations and create cases  |
 | `skill-up report <result.json>`      | Generate reports from a previous run        |
 | `skill-up import <evals.json>`       | Import Anthropic `evals.json` to YAML cases |
 | `skill-up debug judge <input.json>`  | Debug judge module with a JSON input        |
@@ -319,12 +318,11 @@ skill-up/
 │   ├── cli/               # Commands and flags
 │   ├── evaluator/         # Case execution and judging orchestration
 │   ├── evalevent/         # Evaluation event model, lifecycle, publisher, and JSONL sink
-│   ├── observation/       # Local Skill observation and approved-case workflow
 │   ├── runner/            # End-to-end run orchestration
 │   └── report/            # JSON, JUnit, HTML, and benchmark reports
 ├── pkg/                   # Publicly importable APIs
 ├── plugins/               # Agent host plugin bundles
-├── schemas/               # Versioned event and observation JSON Schemas
+├── schemas/evalevent/     # Versioned evaluation event JSON Schemas
 ├── skills/skill-upper/    # Distributable workflow Skill
 ├── docs/                  # VitePress documentation
 ├── e2e/                   # End-to-end tests and fixtures
