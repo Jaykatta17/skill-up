@@ -244,14 +244,11 @@ def save_observation(root: Path, observation: dict[str, Any]) -> bool:
     validate_observation(observation)
     ensure_private_dir(root)
     path = root / f"{observation['id']}.json"
-    try:
-        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    except FileExistsError:
-        return False
-    with os.fdopen(fd, "w", encoding="utf-8") as stream:
-        json.dump(observation, stream, ensure_ascii=False, indent=2)
-        stream.write("\n")
-    return True
+    with file_lock(Path(str(path) + ".lock")):
+        if path.exists():
+            return False
+        atomic_write_json(path, observation)
+        return True
 
 
 def handle_hook(payload: dict[str, Any], root: Path | None = None) -> dict[str, Any] | None:
@@ -462,21 +459,36 @@ def append_case_reference(eval_text: str, relative_path: str) -> str:
     return "".join(lines)
 
 
+def require_within(root: Path, path: Path, label: str) -> Path:
+    resolved = path.resolve(strict=True)
+    try:
+        resolved.relative_to(root)
+    except ValueError as error:
+        raise ValueError(f"{label} must resolve inside the Skill root") from error
+    return resolved
+
+
 def write_candidate_case(root: Path, observation: dict[str, Any], skill_root: str) -> dict[str, Any]:
     if observation["review"]["status"] != "approved":
         raise PermissionError("observation must be approved before writing a case")
     skill = Path(skill_root).expanduser().resolve()
+    if not skill.is_dir():
+        raise FileNotFoundError("skill root must be a directory")
     if not (skill / "SKILL.md").is_file():
         raise FileNotFoundError("skill root must contain SKILL.md")
-    eval_path = skill / "evals" / "eval.yaml"
-    if not eval_path.is_file():
+    require_within(skill, skill / "SKILL.md", "SKILL.md")
+    evals_dir = require_within(skill, skill / "evals", "evals directory")
+    if not (evals_dir / "eval.yaml").is_file():
         raise FileNotFoundError("skill root must contain evals/eval.yaml")
+    eval_path = require_within(skill, evals_dir / "eval.yaml", "eval.yaml")
 
-    with file_lock(skill / "evals" / ".skill-up-observer.lock", timeout=30):
+    with file_lock(evals_dir / ".skill-up-observer.lock", timeout=30):
         case_text, case_id = candidate_case(observation)
         relative_path = f"evals/cases/{case_id}.yaml"
-        case_path = skill / relative_path
-        case_path.parent.mkdir(mode=0o755, parents=True, exist_ok=True)
+        cases_dir = evals_dir / "cases"
+        cases_dir.mkdir(mode=0o755, parents=True, exist_ok=True)
+        cases_dir = require_within(skill, cases_dir, "cases directory")
+        case_path = cases_dir / f"{case_id}.yaml"
         eval_original = eval_path.read_text(encoding="utf-8")
         eval_updated = append_case_reference(eval_original, relative_path)
         try:

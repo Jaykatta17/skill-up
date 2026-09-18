@@ -56,6 +56,36 @@ class ObserverTest(unittest.TestCase):
             self.assertEqual(duplicate["id"], result["id"])
             self.assertEqual(len(observer.list_observations(root)), 1)
 
+    def test_concurrent_duplicate_observation_writes_are_atomic(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            observer.handle_hook(
+                {
+                    "session_id": "session-atomic",
+                    "turn_id": "turn-1",
+                    "hook_event_name": "UserPromptSubmit",
+                    "prompt": "Use $demo-skill",
+                },
+                root,
+            )
+            observation = observer.handle_hook(
+                {"session_id": "session-atomic", "turn_id": "turn-1", "hook_event_name": "Stop"}, root
+            )
+            path = root / f"{observation['id']}.json"
+            path.unlink()
+            results: list[bool] = []
+
+            def save() -> None:
+                results.append(observer.save_observation(root, observation))
+
+            threads = [threading.Thread(target=save) for _ in range(12)]
+            for thread in threads:
+                thread.start()
+            for thread in threads:
+                thread.join()
+            self.assertEqual(results.count(True), 1)
+            self.assertEqual(observer.get_observation(root, observation["id"]), observation)
+
     def test_unattributed_turn_is_discarded(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -201,6 +231,36 @@ class ObserverTest(unittest.TestCase):
                     )
             self.assertEqual(eval_path.read_text(encoding="utf-8"), original)
             self.assertEqual(list((skill / "evals" / "cases").iterdir()), [])
+
+    def test_case_write_rejects_directory_symlink_escape(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "data"
+            skill = Path(temporary) / "skill"
+            outside = Path(temporary) / "outside"
+            (skill / "evals").mkdir(parents=True)
+            outside.mkdir()
+            (skill / "evals" / "cases").symlink_to(outside, target_is_directory=True)
+            (skill / "SKILL.md").write_text("---\nname: demo-skill\n---\n", encoding="utf-8")
+            (skill / "evals" / "eval.yaml").write_text(
+                "schema_version: v1alpha1\ncases:\n  files: []\n", encoding="utf-8"
+            )
+            observer.handle_hook(
+                {
+                    "session_id": "session-escape",
+                    "hook_event_name": "UserPromptSubmit",
+                    "prompt": "Use $demo-skill",
+                },
+                root,
+            )
+            observation = observer.handle_hook(
+                {"session_id": "session-escape", "hook_event_name": "Stop"}, root
+            )
+            observer.set_review(root, observation["id"], "approved")
+            with self.assertRaisesRegex(ValueError, "cases directory"):
+                observer.write_candidate_case(
+                    root, observer.get_observation(root, observation["id"]), str(skill)
+                )
+            self.assertEqual(list(outside.iterdir()), [])
 
     def test_mcp_lists_marker_and_review_tools(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
